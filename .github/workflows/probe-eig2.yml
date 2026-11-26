@@ -1,4 +1,4 @@
-name: Eig probe 2 (stages and kernels of MATLAB symmetric eig: dsytrd, dstedc, dormtr)
+name: "Eig probe 2 (stages and kernels of MATLAB symmetric eig: dsytrd, dstedc, dormtr)"
 on: workflow_dispatch
 permissions:
   contents: read
