@@ -37,6 +37,17 @@ for s = 1:numel(p.rect)
     emit(out, rec);
 end
 
+for q = 1:numel(p.sums)
+    L = p.sums(q);
+    i = (1:L);
+    v = (mod(i * 7919, 10007) - 5003) .* 2 .^ (mod(i, 41) - 20);
+    rec = struct('case', sprintf('p2b-sum-%07d', L), 'L', L, 'outputs', struct(), 'notes', struct());
+    rec.outputs.t1_row = hexs(sum(v));
+    rec.outputs.t1_col = hexs(sum(v.'));
+    rec.notes.threads = maxNumCompThreads;
+    emit(out, rec);
+end
+
 for s = 1:numel(p.inner)
     L = p.inner(s).L;
     a = fromhex(p.inner(s).a);

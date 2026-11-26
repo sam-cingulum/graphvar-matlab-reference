@@ -103,6 +103,11 @@ def main():
     b_battery()
     rnd = random.Random(202611273)
     out = {"square": [], "rect": [], "inner": []}
+    # P1-00 PR8a: where one-thread sum switches from four lanes (<= 81,920 measured) to
+    # 4,096-blocks (>= 90,000 measured). Squares n^2 for n = 287..299 are GraphVar sizes.
+    out["sums"] = sorted(set([81921, 81924, 81925, 82000, 82944, 83000, 83968, 84000, 84992, 85000, 86000, 86016,
+                              87000, 87040, 88000, 88064, 89000, 89088, 89999, 90000, 90112]
+                             + [n * n for n in range(287, 300)]))
     for n in SQ_N:
         out["square"].append({"n": n, "A": mat(gauss(rnd, n, n)), "B": mat(gauss(rnd, n, n))})
     for r in RECT_R:
