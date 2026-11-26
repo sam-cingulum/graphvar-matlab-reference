@@ -375,6 +375,8 @@ out = fullfile(outDir, 'measures.jsonl');
 for k = 1:numel(mcases)
     mc = mcases{k};
     g = mc.graph;
+    rec = struct('case', mc.case, 'outputs', struct(), 'error', [], 'warnings', {{}}, 'notes', struct());
+    try
     if isfield(g, 'construct') && ~isempty(g.construct)
         W = construct_case(p1cases(byId(g.construct)), p1mats);
     elseif isfield(g, 'phase1_matrix') && ~isempty(g.phase1_matrix)
@@ -386,8 +388,12 @@ for k = 1:numel(mcases)
     else
         W = fromhex(mats.(g.matrix));
     end
+    catch err
+        rec.error = struct('identifier', err.identifier, 'message', err.message);
+        emit(out, outDir, rec);
+        continue
+    end
     ids = cellstr(mc.measures);
-    rec = struct('case', mc.case, 'outputs', struct(), 'error', [], 'warnings', {{}}, 'notes', struct());
     for q = 1:numel(ids)
         try
             [val, note] = measure(ids{q}, W);

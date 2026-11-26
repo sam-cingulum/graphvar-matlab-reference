@@ -86,7 +86,9 @@ def b_battery():
     for k in p103mats:
         if k.startswith("g_"):
             mc.append({"graph": {"matrix": k}, "measures": ["M75"]})
-    binary = [c["case"] for c in p1cases if c["mode"] == "binary"]
+    square = {k for k, v in p1mats.items() if v["size"][0] == v["size"][1]}
+    binary = [c["case"] for c in p1cases if c["mode"] == "binary" and c["matrix"] in square
+              and c["matrix"] not in ("nan_5", "inf_5")]
     for cid in binary[::8]:
         mc.append({"graph": {"construct": cid}, "measures": ["M75"]})
     for k in m:
@@ -104,10 +106,10 @@ def main():
     rnd = random.Random(202611273)
     out = {"square": [], "rect": [], "inner": []}
     # P1-00 PR8a: where one-thread sum switches from four lanes (<= 81,920 measured) to
-    # 4,096-blocks (>= 90,000 measured). Squares n^2 for n = 287..299 are GraphVar sizes.
+    # 4,096-blocks (>= 90,000 measured; run 45830964237 narrowed it to 88,805..88,999, now swept). Squares n^2 for n = 287..299 are GraphVar sizes.
     out["sums"] = sorted(set([81921, 81924, 81925, 82000, 82944, 83000, 83968, 84000, 84992, 85000, 86000, 86016,
                               87000, 87040, 88000, 88064, 89000, 89088, 89999, 90000, 90112]
-                             + [n * n for n in range(287, 300)]))
+                             + [n * n for n in range(287, 300)] + list(range(88805, 89000))))
     for n in SQ_N:
         out["square"].append({"n": n, "A": mat(gauss(rnd, n, n)), "B": mat(gauss(rnd, n, n))})
     for r in RECT_R:
