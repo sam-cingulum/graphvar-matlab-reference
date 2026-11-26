@@ -622,12 +622,15 @@ end
 
 function eq = bct_equal(f, v)
 % 1 if the BCT 2019 function gives the same words, 0 if not, -1 if it errors.
+% Words are compared bit for bit (signed zeros and NaN payloads included).
 try
     r = f();
-    eq = double(isequaln(r, v) && isequal(signbit(r), signbit(v)));
 catch
     eq = -1;
+    return
 end
+r = double(r); v = double(v);
+eq = double(isequal(size(r), size(v)) && isequal(typecast(r(:), 'uint64'), typecast(v(:), 'uint64')));
 end
 
 function eq = rc_note(f, v, deg)
