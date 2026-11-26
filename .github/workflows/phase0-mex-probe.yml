@@ -9,13 +9,15 @@ env:
 jobs:
   probe:
     runs-on: ubuntu-24.04
-    timeout-minutes: 120
+    timeout-minutes: 240
     steps:
       - uses: actions/checkout@v4
       - name: Approved CPU only
         run: mkdir -p results/phase0 && tools/cpu_gate.sh results/phase0/cpu.txt
       - name: Fetch and verify GraphVar 2.03a from NITRC (never committed)
         run: tools/fetch_graphvar.sh "$RUNNER_TEMP/gv"
+      - name: Fetch and verify BCT 2019-03-03 (never committed)
+        run: tools/fetch_bct.sh "$RUNNER_TEMP/bct"
       - id: setup
         uses: matlab-actions/setup-matlab@v3
         with:
@@ -27,42 +29,14 @@ jobs:
           file="$(find /opt/hostedtoolcache/MATLAB -name libmwmathspec.so -type f -print -quit)"
           test -n "$file"
           sha256sum "$file" | tee -a results/phase0/cpu.txt
-      - name: Probe pass 1
+      - name: Check MATLAB runs from the shell
+        if: ${{ steps.setup.outcome == 'success' }}
+        run: matlab -batch "disp(version)"
+      - name: Probe every item in its own MATLAB process
         if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
-        continue-on-error: true
-        uses: matlab-actions/run-command@v3
-        with:
-          command: addpath('drivers'); probe_mex(fullfile(getenv('RUNNER_TEMP'),'gv','GraphVar_2.03a'), fullfile(pwd,'results','phase0','probe_log.jsonl'))
-      - name: Probe pass 2
-        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
-        continue-on-error: true
-        uses: matlab-actions/run-command@v3
-        with:
-          command: addpath('drivers'); probe_mex(fullfile(getenv('RUNNER_TEMP'),'gv','GraphVar_2.03a'), fullfile(pwd,'results','phase0','probe_log.jsonl'))
-      - name: Probe pass 3
-        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
-        continue-on-error: true
-        uses: matlab-actions/run-command@v3
-        with:
-          command: addpath('drivers'); probe_mex(fullfile(getenv('RUNNER_TEMP'),'gv','GraphVar_2.03a'), fullfile(pwd,'results','phase0','probe_log.jsonl'))
-      - name: Probe pass 4
-        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
-        continue-on-error: true
-        uses: matlab-actions/run-command@v3
-        with:
-          command: addpath('drivers'); probe_mex(fullfile(getenv('RUNNER_TEMP'),'gv','GraphVar_2.03a'), fullfile(pwd,'results','phase0','probe_log.jsonl'))
-      - name: Probe pass 5
-        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
-        continue-on-error: true
-        uses: matlab-actions/run-command@v3
-        with:
-          command: addpath('drivers'); probe_mex(fullfile(getenv('RUNNER_TEMP'),'gv','GraphVar_2.03a'), fullfile(pwd,'results','phase0','probe_log.jsonl'))
-      - name: Probe pass 6
-        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
-        continue-on-error: true
-        uses: matlab-actions/run-command@v3
-        with:
-          command: addpath('drivers'); probe_mex(fullfile(getenv('RUNNER_TEMP'),'gv','GraphVar_2.03a'), fullfile(pwd,'results','phase0','probe_log.jsonl'))
+        run: |
+          set -uo pipefail
+          tools/run_probe.sh "$RUNNER_TEMP/gv/GraphVar_2.03a" results/phase0
       - name: Assemble report
         if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         run: python3 tools/assemble_probe.py results/phase0/probe_log.jsonl results/phase0/probe_report.json

@@ -1,41 +1,35 @@
-function probe_mex(gvRoot, logFile)
+function probe_mex(gvRoot, logFile, mode, label)
 % Phase 0 probe: do GraphVar 2.03a's bundled Linux MEX binaries load and run
 % on this MATLAB release? Synthetic inputs only.
 %
-% Crash tolerant: each item writes a START line before it runs and a RESULT
-% line after. If MATLAB dies inside a MEX call, the next session (the workflow
-% calls this function again) records that item as CRASHED and carries on.
+% Each item runs in its own MATLAB process (see the workflow), so a MEX call
+% that crashes or hangs only loses that item.
 src = fullfile(gvRoot, 'src');
 addpath(genpath(src));
 
 items = probe_items(src);
-[done, started] = read_log(logFile);
-
-if ~isKey(done, 'env')
-    env = struct('release', version(), 'computer', computer(), ...
-                 'maxNumCompThreads', maxNumCompThreads(), ...
-                 'blas', version('-blas'), 'lapack', version('-lapack'));
-    names = {'tdot', 'tlstsq', 'tpinv', 'trandlstsq'};
-    for i = 1:numel(names)
-        env.precedence.(names{i}) = strrep(which(names{i}, '-all'), [src filesep], '');
-    end
-    write_line(logFile, struct('kind', 'RESULT', 'item', 'env', 'data', env));
+switch mode
+    case 'list'
+        fid = fopen(logFile, 'w');
+        % smoke tests first, then the bare load checks
+        order = [find(cellfun(@(t) strcmp(t.kind, 'smoke'), items)), find(cellfun(@(t) strcmp(t.kind, 'load'), items))];
+        for i = order
+            fprintf(fid, '%s\n', items{i}.label);
+        end
+        fclose(fid);
+    case 'env'
+        env = struct('release', version(), 'computer', computer(), ...
+                     'maxNumCompThreads', maxNumCompThreads(), ...
+                     'blas', version('-blas'), 'lapack', version('-lapack'));
+        names = {'tdot', 'tlstsq', 'tpinv', 'trandlstsq'};
+        for i = 1:numel(names)
+            env.precedence.(names{i}) = strrep(which(names{i}, '-all'), [src filesep], '');
+        end
+        write_line(logFile, struct('kind', 'RESULT', 'item', 'env', 'data', env));
+    case 'one'
+        hit = find(cellfun(@(t) strcmp(t.label, label), items), 1);
+        write_line(logFile, struct('kind', 'RESULT', 'item', label, 'data', run_item(items{hit})));
 end
-
-for i = 1:numel(items)
-    it = items{i};
-    if isKey(done, it.label)
-        continue
-    end
-    if isKey(started, it.label)
-        write_line(logFile, struct('kind', 'RESULT', 'item', it.label, ...
-            'data', struct('status', 'CRASHED', 'note', 'MATLAB exited during this call')));
-        continue
-    end
-    write_line(logFile, struct('kind', 'START', 'item', it.label));
-    write_line(logFile, struct('kind', 'RESULT', 'item', it.label, 'data', run_item(it)));
-end
-write_line(logFile, struct('kind', 'END', 'item', ''));
 end
 
 function items = probe_items(src)
@@ -117,26 +111,6 @@ end
 function p = svmrun(lab, X, trainOpts, predictOpts)
 model = svmtrain(lab, X, trainOpts);
 [~, ~, p] = svmpredict(lab, X, model, predictOpts);
-end
-
-function [done, started] = read_log(logFile)
-done = containers.Map();
-started = containers.Map();
-if ~isfile(logFile)
-    return
-end
-lines = readlines(logFile);
-for i = 1:numel(lines)
-    if strlength(lines(i)) == 0
-        continue
-    end
-    e = jsondecode(lines(i));
-    if strcmp(e.kind, 'START')
-        started(e.item) = true;
-    elseif strcmp(e.kind, 'RESULT')
-        done(e.item) = true;
-    end
-end
 end
 
 function write_line(logFile, s)

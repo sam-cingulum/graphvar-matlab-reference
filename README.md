@@ -7,4 +7,6 @@ Synthetic-only reference outputs from GraphVar 2.03a running on genuine MathWork
 - Inputs are synthetic matrices generated from fixed seeds. There is no patient data.
 - Outputs are recorded as IEEE-754 hex words and uploaded as workflow artifacts.
 
+- The Brain Connectivity Toolbox release 2019-03-03 (GPL, https://sites.google.com/site/bctnet/) is also fetched at run time and checked against its SHA-256. Like GraphVar, it is never committed.
+
 Layout: `drivers/` holds the MATLAB driver scripts for this repository, `tools/` holds the fetch, CPU-gate and assembly scripts, and `cases/` holds the synthetic case definitions.
