@@ -32,6 +32,8 @@ switch part
         end
     case 'p2measures'
         run_p103_measures(fullfile(inDir, '..', 'p103'), outDir, fullfile(inDir, 'measures.json'), inDir);
+    case 'p2bmeasures'
+        run_p103_measures(fullfile(inDir, '..', 'p103'), outDir, fullfile(inDir, 'bmeasures.json'), inDir);
     case 'prim'
         run_prim(inDir, outDir);
     case 'construct'
@@ -362,8 +364,10 @@ mats = jsondecode(fileread(fullfile(inDir, 'matrices.json')));
 if nargin < 3, measFile = fullfile(inDir, 'measures.json'); end
 if nargin >= 4
     p2mats = jsondecode(fileread(fullfile(p2Dir, 'matrices.json')));
-    p2cases = jsondecode(fileread(fullfile(p2Dir, 'construct.json')));
-    p2byId = containers.Map({p2cases.case}, num2cell(1:numel(p2cases)));
+    if isfile(fullfile(p2Dir, 'construct.json'))
+        p2cases = jsondecode(fileread(fullfile(p2Dir, 'construct.json')));
+        p2byId = containers.Map({p2cases.case}, num2cell(1:numel(p2cases)));
+    end
 end
 mcases = jsondecode(fileread(measFile));
 if ~iscell(mcases), mcases = num2cell(mcases); end
@@ -501,6 +505,12 @@ switch id
         CYo = Ko .* (Ko - 1) - 2 * diag(double(A) ^ 2);
         note = struct('bct2019_equal', bct_equal(@() transitivity_wd(W), v), ...
             'graphvar_old_equal', double(isequaln(sum(cyc3) ./ sum(CYo), v)));
+    case 'M75'
+        G = double(W ~= 0);
+        v = betweenness_bin_fixed(G);
+        ov = walk_overflow(G);
+        if ov, note = struct('bct2019_overflow', 1, 'bct2019_equal', -2);
+        else, note = struct('bct2019_overflow', 0, 'bct2019_equal', bct_equal(@() betweenness_bin(G), v)); end
     otherwise, error('GV:ref:unknownMeasure', 'unknown measure %s', id);
 end
 end
@@ -526,6 +536,49 @@ CYC3 = K .* (K - 1) - 2 * diag(double(A) ^ 2);
 c = zeros(n, 1);
 ok = cyc3 ~= 0;
 c(ok) = cyc3(ok) ./ CYC3(ok);
+end
+
+function BC = betweenness_bin_fixed(G)
+% P2-02: BCT 2019 betweenness_bin with one change: each step multiplies only
+% the newly reached shortest-path counts by G, so walk counts never overflow.
+n = length(G);
+I = eye(n) ~= 0;
+d = 1;
+NSPd = G;
+NSP = NSPd; NSP(I) = 1;
+L = NSPd; L(I) = 1;
+while find(NSPd, 1)
+    d = d + 1;
+    NPd = NSPd * G;
+    NSPd = NPd .* (L == 0);
+    NSP = NSP + NSPd;
+    L = L + d .* (NSPd ~= 0);
+end
+L(~L) = inf; L(I) = 0;
+NSP(~NSP) = 1;
+Gt = G.';
+DP = zeros(n);
+diam = d - 1;
+for d = diam:-1:2
+    DPd1 = (((L == d) .* (1 + DP) ./ NSP) * Gt) .* ((L == (d - 1)) .* NSP);
+    DP = DP + DPd1;
+end
+BC = sum(DP, 1);
+end
+
+function ov = walk_overflow(G)
+% 1 if BCT 2019's all-walk counts reach a non-finite value before every pair
+% is reached (BCT's loop then never ends), else 0.
+n = length(G);
+I = eye(n) ~= 0;
+NPd = G; NSPd = G; L = G; L(I) = 1; d = 1; ov = 0;
+while find(NSPd, 1)
+    d = d + 1;
+    NPd = NPd * G;
+    if any(~isfinite(NPd(:))), ov = 1; return; end
+    NSPd = NPd .* (L == 0);
+    L = L + d .* (NSPd ~= 0);
+end
 end
 
 function s = p103_label(id)

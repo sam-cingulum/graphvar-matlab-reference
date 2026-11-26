@@ -1,4 +1,4 @@
-name: Phase 2b reference (Gram X.'*X, X*X.', distinct X.'*Y, inner products)
+name: Phase 2b reference (Gram X.'*X, X*X.', distinct X.'*Y, inner products; P2-02 binary betweenness)
 on: workflow_dispatch
 permissions:
   contents: read
@@ -15,11 +15,15 @@ jobs:
           - {os: ubuntu-22.04, draw: 1}
           - {os: ubuntu-22.04, draw: 2}
           - {os: ubuntu-22.04, draw: 3}
+          - {os: ubuntu-22.04, draw: 4}
+          - {os: ubuntu-22.04, draw: 5}
+          - {os: ubuntu-22.04, draw: 6}
           - {os: ubuntu-24.04, draw: 1}
           - {os: ubuntu-24.04, draw: 2}
           - {os: ubuntu-24.04, draw: 3}
           - {os: ubuntu-24.04, draw: 4}
           - {os: ubuntu-24.04, draw: 5}
+          - {os: ubuntu-24.04, draw: 6}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 90
     steps:
@@ -27,10 +31,13 @@ jobs:
       - name: Approved CPU only
         run: mkdir -p results/p2b && tools/cpu_gate.sh results/p2b/cpu.txt
       - name: Generate synthetic inputs
-        run: python3 -I tools/gen_p2b.py cases/p2b
+        run: python3 -I tools/gen_p103.py cases/p103 && python3 -I tools/gen_p2b.py cases/p2b
       - name: Record input hashes
-        run: sha256sum cases/p2b/*.json tools/gen_p2b.py drivers/ref_p2b.m | tee results/p2b/inputs_sha256.txt
-      - uses: matlab-actions/setup-matlab@v3
+        run: sha256sum cases/phase1/*.json cases/p103/*.json cases/p2b/*.json tools/gen_p103.py tools/gen_p2b.py drivers/ref_p2b.m drivers/ref_phase1.m | tee results/p2b/inputs_sha256.txt
+      - name: Fetch and verify BCT 2019-03-03 (never committed)
+        run: tools/fetch_bct.sh "$RUNNER_TEMP/bct"
+      - id: setup
+        uses: matlab-actions/setup-matlab@v3
         with:
           release: R2026b
       - name: Record MathWorks binary provenance
@@ -42,11 +49,23 @@ jobs:
         uses: matlab-actions/run-command@v3
         with:
           command: maxNumCompThreads(1); addpath('drivers'); fprintf('%s\n', version('-blas')); ref_p2b('cases/p2b', 'results/p2b')
+      - name: P2-02 binary betweenness (M75)
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        uses: matlab-actions/run-command@v3
+        with:
+          command: maxNumCompThreads(1); addpath('drivers'); b = fullfile(getenv('RUNNER_TEMP'),'bct','2019_03_03_BCT'); ref_phase1(b, 'cases/p2b', 'results/p2b/m', 'p2bmeasures')
+      - name: Digest
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: |
+          set -euo pipefail
+          [ -f results/p2b/m/measures.jsonl ] && python3 tools/digest_blobs.py results/p2b/m/measures.jsonl results/p2b/m/blobs results/p2b/m/measures.json
+          rm -rf results/p2b/m/blobs
       - name: Upload
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         uses: actions/upload-artifact@v4
         with:
           name: p2b-reference-${{ matrix.os }}-${{ matrix.draw }}
           path: |
             results/p2b/*.jsonl
             results/p2b/*.txt
+            results/p2b/m/*.json
