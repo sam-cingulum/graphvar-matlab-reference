@@ -1,0 +1,46 @@
+name: Phase 2 reference (MKL dgemm reduction order, FMA, zero signs, mpower)
+on: workflow_dispatch
+permissions:
+  contents: read
+env:
+  MKL_CBWR: COMPATIBLE
+  MKL_NUM_THREADS: "1"
+  OMP_NUM_THREADS: "1"
+jobs:
+  reference:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, ubuntu-24.04]
+        draw: [1, 2, 3]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - name: Approved CPU only
+        run: mkdir -p results/p2 && tools/cpu_gate.sh results/p2/cpu.txt
+      - name: Generate synthetic inputs
+        run: python3 -I tools/gen_p2.py cases/p2
+      - name: Record input hashes
+        run: sha256sum cases/p2/*.json tools/gen_p2.py drivers/ref_p2.m | tee results/p2/inputs_sha256.txt
+      - id: setup
+        uses: matlab-actions/setup-matlab@v3
+        with:
+          release: R2026b
+      - name: Record MathWorks binary provenance
+        run: |
+          set -euo pipefail
+          file="$(find /opt/hostedtoolcache/MATLAB -name libmwmathspec.so -type f -print -quit)"
+          sha256sum "$file" | tee -a results/p2/cpu.txt
+      - name: Matrix multiply probes
+        uses: matlab-actions/run-command@v3
+        with:
+          command: maxNumCompThreads(1); addpath('drivers'); fprintf('%s\n', version('-blas')); ref_p2('cases/p2', 'results/p2')
+      - name: Upload
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: p2-reference-${{ matrix.os }}-${{ matrix.draw }}
+          path: |
+            results/p2/*.jsonl
+            results/p2/*.txt
