@@ -560,6 +560,13 @@ switch id
         % P2-03: BCT 2019 path_transitivity with the 'inv' transform, after the
         % P1-03 input checks (negative weights refused; lengths must be finite).
         check_w(W, lbl, true);
+        % Sam's ruling 27 Nov: refuse an asymmetric W, naming the first entry
+        % (column-major) that differs from its mirror.
+        bad = find(W ~= W.', 1);
+        if ~isempty(bad)
+            [i, j] = ind2sub(size(W), bad);
+            error('GV:measure:asymmetric', '%s needs a symmetric matrix (entry (%d,%d) differs from entry (%d,%d)); path transitivity is defined for undirected graphs', lbl, i, j, j, i);
+        end
         v = path_transitivity(W, 'inv');
     case 'M75'
         G = double(W ~= 0);
