@@ -34,6 +34,8 @@ switch part
         run_p103_measures(fullfile(inDir, '..', 'p103'), outDir, fullfile(inDir, 'measures.json'), inDir);
     case 'p2bmeasures'
         run_p103_measures(fullfile(inDir, '..', 'p103'), outDir, fullfile(inDir, 'bmeasures.json'), inDir);
+    case 'p2cmeasures'
+        run_p103_measures(fullfile(inDir, '..', 'p103'), outDir, fullfile(inDir, 'cmeasures.json'), inDir);
     case 'prim'
         run_prim(inDir, outDir);
     case 'g1measures'
@@ -554,6 +556,11 @@ switch id
         CYo = Ko .* (Ko - 1) - 2 * diag(double(A) ^ 2);
         note = struct('bct2019_equal', bct_equal(@() transitivity_wd(W), v), ...
             'graphvar_old_equal', double(isequaln(sum(cyc3) ./ sum(CYo), v)));
+    case {'M76', 'M77'}
+        % P2-03: BCT 2019 path_transitivity with the 'inv' transform, after the
+        % P1-03 input checks (negative weights refused; lengths must be finite).
+        check_w(W, lbl, true);
+        v = path_transitivity(W, 'inv');
     case 'M75'
         G = double(W ~= 0);
         v = betweenness_bin_fixed(G);
@@ -644,7 +651,8 @@ labels = struct('M43', 'Distance - UND/DIR', 'M44', 'Characteristic path global 
     'M69', 'Clustering coefficient local - UND', 'M70', 'Clustering coefficient local - DIR', ...
     'M71', 'Clustering coefficient local (normalized input weight) - UND', ...
     'M72', 'Clustering coefficient local (normalized input weight) - DIR', ...
-    'M73', 'Transitivity - UND', 'M74', 'Transitivity - DIR');
+    'M73', 'Transitivity - UND', 'M74', 'Transitivity - DIR', ...
+    'M76', 'Path transitivity - UND/DIR', 'M77', 'Path transitivity - UND/DIR');
 if isfield(labels, id), s = labels.(id); else, s = id; end
 end
 

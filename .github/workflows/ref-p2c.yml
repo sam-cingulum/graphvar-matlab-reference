@@ -1,0 +1,66 @@
+name: Phase 2c reference (P2-03 path transitivity, M76 and M77)
+on: workflow_dispatch
+permissions:
+  contents: read
+env:
+  MKL_CBWR: COMPATIBLE
+  MKL_NUM_THREADS: "1"
+  OMP_NUM_THREADS: "1"
+jobs:
+  reference:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {os: ubuntu-22.04, draw: 1}
+          - {os: ubuntu-22.04, draw: 2}
+          - {os: ubuntu-22.04, draw: 3}
+          - {os: ubuntu-22.04, draw: 4}
+          - {os: ubuntu-22.04, draw: 5}
+          - {os: ubuntu-22.04, draw: 6}
+          - {os: ubuntu-24.04, draw: 1}
+          - {os: ubuntu-24.04, draw: 2}
+          - {os: ubuntu-24.04, draw: 3}
+          - {os: ubuntu-24.04, draw: 4}
+          - {os: ubuntu-24.04, draw: 5}
+          - {os: ubuntu-24.04, draw: 6}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Approved CPU only
+        run: mkdir -p results/p2c && tools/cpu_gate.sh results/p2c/cpu.txt
+      - name: Generate synthetic inputs
+        run: python3 -I tools/gen_p103.py cases/p103 && python3 -I tools/gen_p2b.py cases/p2b && python3 -I tools/gen_p2c.py cases/p2c
+      - name: Record input hashes
+        run: sha256sum cases/phase1/*.json cases/p103/*.json cases/p2b/*.json cases/p2c/*.json tools/gen_p103.py tools/gen_p2b.py tools/gen_p2c.py drivers/ref_phase1.m | tee results/p2c/inputs_sha256.txt
+      - name: Fetch and verify BCT 2019-03-03 (never committed)
+        run: tools/fetch_bct.sh "$RUNNER_TEMP/bct"
+      - id: setup
+        uses: matlab-actions/setup-matlab@v3
+        with:
+          release: R2026b
+      - name: Record MathWorks binary provenance
+        run: |
+          set -euo pipefail
+          file="$(find /opt/hostedtoolcache/MATLAB -name libmwmathspec.so -type f -print -quit)"
+          sha256sum "$file" | tee -a results/p2c/cpu.txt
+      - name: P2-03 path transitivity (M76, M77)
+        uses: matlab-actions/run-command@v3
+        with:
+          command: maxNumCompThreads(1); addpath('drivers'); b = fullfile(getenv('RUNNER_TEMP'),'bct','2019_03_03_BCT'); ref_phase1(b, 'cases/p2c', 'results/p2c/m', 'p2cmeasures')
+      - name: Digest
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: |
+          set -euo pipefail
+          [ -f results/p2c/m/measures.jsonl ] && python3 tools/digest_blobs.py results/p2c/m/measures.jsonl results/p2c/m/blobs results/p2c/m/measures.json
+          rm -rf results/p2c/m/blobs
+      - name: Upload
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: p2c-reference-${{ matrix.os }}-${{ matrix.draw }}
+          path: |
+            results/p2c/*.jsonl
+            results/p2c/*.txt
+            results/p2c/m/*.json
