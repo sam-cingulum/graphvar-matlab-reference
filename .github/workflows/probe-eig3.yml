@@ -1,0 +1,64 @@
+name: "Eig probe 3 (blocked dsytrd, dormtr back-transform, dstedc dgemm, dsteqr splits, scaling bounds)"
+on: workflow_dispatch
+permissions:
+  contents: read
+env:
+  MKL_CBWR: COMPATIBLE
+  MKL_NUM_THREADS: "1"
+  OMP_NUM_THREADS: "1"
+jobs:
+  probe:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {os: ubuntu-22.04, draw: 1}
+          - {os: ubuntu-22.04, draw: 2}
+          - {os: ubuntu-22.04, draw: 3}
+          - {os: ubuntu-22.04, draw: 4}
+          - {os: ubuntu-22.04, draw: 5}
+          - {os: ubuntu-22.04, draw: 6}
+          - {os: ubuntu-24.04, draw: 1}
+          - {os: ubuntu-24.04, draw: 2}
+          - {os: ubuntu-24.04, draw: 3}
+          - {os: ubuntu-24.04, draw: 4}
+          - {os: ubuntu-24.04, draw: 5}
+          - {os: ubuntu-24.04, draw: 6}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - name: Approved CPU only
+        run: mkdir -p results/eig3 && tools/cpu_gate.sh results/eig3/cpu.txt
+      - name: Generate synthetic inputs
+        run: python3 -I tools/gen_eig.py cases/eig && python3 -I tools/gen_eig3.py cases/eig
+      - name: Record input hashes
+        run: sha256sum cases/eig/eig.json cases/eig/eig3.json tools/gen_eig.py tools/gen_eig3.py drivers/probe_eig3.m probes/eig/kpeig.c probes/eig/kpeig2.c probes/eig/kpeig3.c | tee results/eig3/inputs_sha256.txt
+      - id: setup
+        uses: matlab-actions/setup-matlab@v3
+        with:
+          release: R2026b
+      - name: Record MathWorks binary provenance
+        run: |
+          set -euo pipefail
+          for lib in libmwmathspec.so libmwlapack.so libmwblas.so; do
+            file="$(find /opt/hostedtoolcache/MATLAB -name "$lib" -print -quit)"
+            if [ -n "$file" ]; then sha256sum "$(readlink -f "$file")" | tee -a results/eig3/cpu.txt; fi
+          done
+          gcc --version | head -1 | tee -a results/eig3/cpu.txt
+      - name: Eig probe 3
+        uses: matlab-actions/run-command@v3
+        with:
+          command: maxNumCompThreads(1); addpath('drivers'); probe_eig3('cases/eig', 'results/eig3')
+      - name: Hash outputs
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: |
+          set -euo pipefail
+          rm -rf results/eig3/mex
+          (cd results/eig3 && sha256sum eig3.jsonl && find blobs -type f | sort | xargs cat | sha256sum | sed 's/-$/blobs (concatenated, sorted by name)/') | tee results/eig3/outputs_sha256.txt
+      - name: Upload
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: eig3-probe-${{ matrix.os }}-${{ matrix.draw }}
+          path: results/eig3
