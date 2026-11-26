@@ -7,12 +7,31 @@ function ref_phase1(bctRoot, inDir, outDir, part)
 % binary blobs that tools/digest_blobs.py turns into SHA-256 digests.
 addpath(bctRoot);
 if ~isfolder(fullfile(outDir, 'blobs')), mkdir(fullfile(outDir, 'blobs')); end
-if ~startsWith(part, 'p103'), mats = jsondecode(fileread(fullfile(inDir, 'matrices.json'))); end
+if ~startsWith(part, 'p103') && ~startsWith(part, 'p2'), mats = jsondecode(fileread(fullfile(inDir, 'matrices.json'))); end
 switch part
     case 'p103prim'
         run_p103_prim(inDir, outDir);
     case 'p103measures'
         run_p103_measures(inDir, outDir);
+    case 'p2construct'
+        % P1-01 v2 additions: rank = magnitude. Matrices come from phase 1.
+        mats = jsondecode(fileread(fullfile(inDir, '..', 'phase1', 'matrices.json')));
+        cases = jsondecode(fileread(fullfile(inDir, 'construct.json')));
+        out = fullfile(outDir, 'construct.jsonl');
+        for k = 1:numel(cases)
+            c = cases(k);
+            rec = struct('case', c.case, 'outputs', struct(), 'error', [], 'warnings', {{}});
+            try
+                [W, neg] = construct_case(c, mats);
+                rec.outputs.W = W;
+                rec.outputs.negatives_present = double(neg);
+            catch err
+                rec.error = struct('identifier', err.identifier, 'message', err.message);
+            end
+            emit(out, outDir, rec);
+        end
+    case 'p2measures'
+        run_p103_measures(fullfile(inDir, '..', 'p103'), outDir, fullfile(inDir, 'measures.json'), inDir);
     case 'prim'
         run_prim(inDir, outDir);
     case 'construct'
@@ -104,7 +123,11 @@ switch c.type
     case 'significance'
         W = R; W(P > str2double(c.value)) = 0; W(1:n+1:end) = 0;
     case 'proportional'
-        W = threshold_proportional(R, str2double(c.value));
+        if isfield(c, 'rank') && strcmp(c.rank, 'magnitude')
+            W = threshold_magnitude(R, str2double(c.value));
+        else
+            W = threshold_proportional(R, str2double(c.value));
+        end
 end
 if strcmp(c.mode, 'binary')
     W(W ~= 0) = 1;
@@ -115,6 +138,24 @@ else
         case 'zero', W(W < 0) = 0;
     end
     neg = any(W(:) < 0);
+end
+end
+
+function W = threshold_magnitude(W, p)
+% Spec P1-01 v2 step B with rank = magnitude: BCT 2019's steps, ranked by |w|.
+n = size(W, 1);
+W(1:n+1:end) = 0;
+if max(max(abs(W - W.'))) < 1e-10
+    W = triu(W); ud = 2;
+else
+    ud = 1;
+end
+ind = find(W);
+E = sortrows([ind abs(W(ind))], -2);
+en = round((n^2 - n) * p / ud);
+W(E(en+1:end, 1)) = 0;
+if ud == 2
+    W = W + W.';
 end
 end
 
@@ -167,7 +208,16 @@ switch id
         end
         v = double(max(conncomp(digraph(A), 'Type', 'strong')));
     case 'M25', v = kcoreness_centrality_bu(W);
-    case 'M26', v = kcoreness_centrality_bd(W);
+    case 'M26'
+        % Spec P1-02 M26 (v4): a node counts in the k-core while its TOTAL degree
+        % there is > 0. BCT 2019 counts in-degree only (a bug: its own kn uses total).
+        n = size(W, 1); v = zeros(1, n);
+        for k = 1:n
+            Ck = kcore_bd(W, k);
+            ss = (sum(Ck, 1) + sum(Ck, 2).') > 0;
+            v(ss) = k;
+        end
+        note = struct('bct2019_equal', bct_equal(@() kcoreness_centrality_bd(W), v));
     case 'M27', v = edge_nei_overlap_bu(W);
     case 'M28', v = edge_nei_overlap_bd(W);
     case 'M29', [M, ~, ~] = matching_ind(W); v = M + M.';
@@ -303,13 +353,19 @@ end
 end
 
 % ================================================================ P1-03
-function run_p103_measures(inDir, outDir)
+function run_p103_measures(inDir, outDir, measFile, p2Dir)
 p1Dir = fullfile(inDir, '..', 'phase1');
 p1mats = jsondecode(fileread(fullfile(p1Dir, 'matrices.json')));
 p1cases = jsondecode(fileread(fullfile(p1Dir, 'construct.json')));
 byId = containers.Map({p1cases.case}, num2cell(1:numel(p1cases)));
 mats = jsondecode(fileread(fullfile(inDir, 'matrices.json')));
-mcases = jsondecode(fileread(fullfile(inDir, 'measures.json')));
+if nargin < 3, measFile = fullfile(inDir, 'measures.json'); end
+if nargin >= 4
+    p2mats = jsondecode(fileread(fullfile(p2Dir, 'matrices.json')));
+    p2cases = jsondecode(fileread(fullfile(p2Dir, 'construct.json')));
+    p2byId = containers.Map({p2cases.case}, num2cell(1:numel(p2cases)));
+end
+mcases = jsondecode(fileread(measFile));
 if ~iscell(mcases), mcases = num2cell(mcases); end
 out = fullfile(outDir, 'measures.jsonl');
 for k = 1:numel(mcases)
@@ -319,6 +375,10 @@ for k = 1:numel(mcases)
         W = construct_case(p1cases(byId(g.construct)), p1mats);
     elseif isfield(g, 'phase1_matrix') && ~isempty(g.phase1_matrix)
         W = fromhex(p1mats.(g.phase1_matrix));
+    elseif isfield(g, 'p2_construct') && ~isempty(g.p2_construct)
+        W = construct_case(p2cases(p2byId(g.p2_construct)), p1mats);
+    elseif isfield(g, 'p2_matrix') && ~isempty(g.p2_matrix)
+        W = fromhex(p2mats.(g.p2_matrix));
     else
         W = fromhex(mats.(g.matrix));
     end
@@ -396,8 +456,76 @@ switch id
     case 'M64'
         [~, v] = sp_betweenness(double(W ~= 0));
         note = struct('bct2019_equal', bct_equal(@() edge_betweenness_bin(W), v));
+    case {'M65', 'M66', 'M67', 'M68', 'M69', 'M70', 'M71', 'M72'}
+        check_w(W, lbl, false);
+        Wm = W; gvW = [];
+        if any(strcmp(id, {'M67', 'M68', 'M71', 'M72'}))
+            gvW = W ./ max(abs(W(:)));          % GraphVar's normalisation, kept for the note
+            m = max(abs(W(:)));
+            if m ~= 0, Wm = W ./ m; end
+        end
+        dirItem = any(strcmp(id, {'M66', 'M68', 'M70', 'M72'}));
+        if dirItem, c = clust_wd(Wm); bf = @clustering_coef_wd; else, c = clust_wu(Wm); bf = @clustering_coef_wu; end
+        globalItem = any(strcmp(id, {'M65', 'M66', 'M67', 'M68'}));
+        if globalItem, v = mean(c); else, v = c; end
+        if isempty(gvW)
+            if globalItem
+                note = struct('bct2019_equal', bct_equal(@() mean(bf(W)), v));
+            else
+                note = struct('bct2019_equal', bct_equal(@() bf(W), v));
+            end
+        else
+            if globalItem
+                note = struct('graphvar_formula_equal', bct_equal(@() mean(bf(gvW)), v));
+            else
+                note = struct('graphvar_formula_equal', bct_equal(@() bf(gvW), v));
+            end
+        end
+    case 'M73'
+        check_w(W, lbl, false);
+        K = sum(W ~= 0, 2);
+        cyc3 = diag((W .^ (1/3)) ^ 3);
+        den = sum(K .* (K - 1));
+        if den == 0, v = NaN; else, v = sum(cyc3) ./ den; end
+        note = struct('bct2019_equal', bct_equal(@() transitivity_wu(W), v));
+    case 'M74'
+        check_w(W, lbl, false);
+        A = W ~= 0;
+        S = W .^ (1/3) + (W.') .^ (1/3);
+        K = sum(A + A.', 2);
+        cyc3 = diag(S ^ 3) / 2;
+        CYC3 = K .* (K - 1) - 2 * diag(double(A) ^ 2);
+        den = sum(CYC3);
+        if den == 0, v = NaN; else, v = sum(cyc3) ./ den; end
+        Ko = K; Ko(cyc3 == 0) = inf;           % GraphVar 2.03a's bundled copy
+        CYo = Ko .* (Ko - 1) - 2 * diag(double(A) ^ 2);
+        note = struct('bct2019_equal', bct_equal(@() transitivity_wd(W), v), ...
+            'graphvar_old_equal', double(isequaln(sum(cyc3) ./ sum(CYo), v)));
     otherwise, error('GV:ref:unknownMeasure', 'unknown measure %s', id);
 end
+end
+
+function c = clust_wu(W)
+% Spec P2-01 M69.
+n = size(W, 1);
+K = sum(W ~= 0, 2);
+cyc3 = diag((W .^ (1/3)) ^ 3);
+c = zeros(n, 1);
+ok = cyc3 ~= 0 & K >= 2;
+c(ok) = cyc3(ok) ./ (K(ok) .* (K(ok) - 1));
+end
+
+function c = clust_wd(W)
+% Spec P2-01 M70 (BCT 2019 clustering_coef_wd).
+n = size(W, 1);
+A = W ~= 0;
+S = W .^ (1/3) + (W.') .^ (1/3);
+K = sum(A + A.', 2);
+cyc3 = diag(S ^ 3) / 2;
+CYC3 = K .* (K - 1) - 2 * diag(double(A) ^ 2);
+c = zeros(n, 1);
+ok = cyc3 ~= 0;
+c(ok) = cyc3(ok) ./ CYC3(ok);
 end
 
 function s = p103_label(id)
@@ -407,7 +535,14 @@ labels = struct('M43', 'Distance - UND/DIR', 'M44', 'Characteristic path global 
     'M50', 'Efficiency local - UND', 'M51', 'Cost efficiency global (Relative or SICE thresholding) - UND', ...
     'M52', 'Cost efficiency global (Absolute or Significance thresholding) - UND', ...
     'M58', 'Rich club coefficient - UND', 'M59', 'Rich club coefficient - DIR', ...
-    'M60', 'Betweenness centrality', 'M61', 'Edge betweenness centrality - UND/DIR');
+    'M60', 'Betweenness centrality', 'M61', 'Edge betweenness centrality - UND/DIR', ...
+    'M65', 'Cluster coefficient global - UND', 'M66', 'Cluster coefficient global - DIR', ...
+    'M67', 'Cluster coefficient global (normalized input weight) - UND', ...
+    'M68', 'Cluster coefficient global (normalized input weight) - DIR', ...
+    'M69', 'Clustering coefficient local - UND', 'M70', 'Clustering coefficient local - DIR', ...
+    'M71', 'Clustering coefficient local (normalized input weight) - UND', ...
+    'M72', 'Clustering coefficient local (normalized input weight) - DIR', ...
+    'M73', 'Transitivity - UND', 'M74', 'Transitivity - DIR');
 if isfield(labels, id), s = labels.(id); else, s = id; end
 end
 

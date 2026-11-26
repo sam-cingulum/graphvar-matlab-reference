@@ -78,6 +78,9 @@ for r = 1:numel(p.rand)
     emit(out, rec);
 end
 
+% --- long sums under 1 and 4 threads
+if isfield(p, 'sums'), run_sums(p, out); end
+
 % --- mpow: A^2, A^3 and symmetric products on non-negative weights
 for q = 1:numel(p.mpow)
     n = p.mpow(q).n;
@@ -94,6 +97,26 @@ for q = 1:numel(p.mpow)
     rec.notes.pow3_symmetric = double(isequal(u(P3), u(P3.')));
     D = diag(P3);
     rec.outputs.diagC3 = hexs(D);
+    emit(out, rec);
+end
+end
+
+function run_sums(p, out)
+% Long 1-D sums with one and with four computational threads (P1-00 PR8a).
+t0 = maxNumCompThreads;
+for q = 1:numel(p.sums)
+    L = p.sums(q);
+    i = (1:L);
+    v = (mod(i * 7919, 10007) - 5003) .* 2 .^ (mod(i, 41) - 20);
+    rec = struct('case', sprintf('p2-sum-%07d', L), 'L', L, 'outputs', struct(), 'notes', struct());
+    maxNumCompThreads(1);
+    rec.outputs.t1_row = hexs(sum(v));
+    rec.outputs.t1_col = hexs(sum(v.'));
+    maxNumCompThreads(4);
+    rec.outputs.t4_row = hexs(sum(v));
+    rec.outputs.t4_col = hexs(sum(v.'));
+    rec.notes.threads_after_set4 = maxNumCompThreads;
+    maxNumCompThreads(t0);
     emit(out, rec);
 end
 end
