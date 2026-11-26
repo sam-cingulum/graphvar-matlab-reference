@@ -1,0 +1,63 @@
+name: Phase 1 reference (construction, batch-1 measures, primitives)
+on: workflow_dispatch
+permissions:
+  contents: read
+env:
+  MKL_CBWR: COMPATIBLE
+  MKL_NUM_THREADS: "1"
+  OMP_NUM_THREADS: "1"
+jobs:
+  reference:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, ubuntu-24.04]
+        draw: [1, 2, 3]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+      - name: Approved CPU only
+        run: mkdir -p results/phase1 && tools/cpu_gate.sh results/phase1/cpu.txt
+      - name: Record input hashes
+        run: sha256sum cases/phase1/*.json drivers/ref_phase1.m | tee results/phase1/inputs_sha256.txt
+      - name: Fetch and verify BCT 2019-03-03 (never committed)
+        run: tools/fetch_bct.sh "$RUNNER_TEMP/bct"
+      - id: setup
+        uses: matlab-actions/setup-matlab@v3
+        with:
+          release: R2026b
+          products: Statistics_and_Machine_Learning_Toolbox
+      - name: Record MathWorks binary provenance
+        run: |
+          set -euo pipefail
+          file="$(find /opt/hostedtoolcache/MATLAB -name libmwmathspec.so -type f -print -quit)"
+          sha256sum "$file" | tee -a results/phase1/cpu.txt
+      - name: Primitives
+        uses: matlab-actions/run-command@v3
+        with:
+          command: addpath('drivers'); ref_phase1(fullfile(getenv('RUNNER_TEMP'),'bct','2019_03_03_BCT'), 'cases/phase1', 'results/phase1', 'prim')
+      - name: Construction
+        uses: matlab-actions/run-command@v3
+        with:
+          command: addpath('drivers'); ref_phase1(fullfile(getenv('RUNNER_TEMP'),'bct','2019_03_03_BCT'), 'cases/phase1', 'results/phase1', 'construct')
+      - name: Measures batch 1
+        uses: matlab-actions/run-command@v3
+        with:
+          command: addpath('drivers'); ref_phase1(fullfile(getenv('RUNNER_TEMP'),'bct','2019_03_03_BCT'), 'cases/phase1', 'results/phase1', 'measures')
+      - name: Digest
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: |
+          set -euo pipefail
+          for p in prim construct measures1; do
+            [ -f results/phase1/$p.jsonl ] && python3 tools/digest_blobs.py results/phase1/$p.jsonl results/phase1/blobs results/phase1/$p.json
+          done
+          rm -rf results/phase1/blobs
+      - name: Upload
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase1-reference-${{ matrix.os }}-${{ matrix.draw }}
+          path: |
+            results/phase1/*.json
+            results/phase1/*.txt
