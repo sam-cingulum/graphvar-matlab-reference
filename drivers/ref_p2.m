@@ -4,6 +4,10 @@ function ref_p2(inDir, outDir)
 % one JSON record per line. No blobs: long outputs are split into fields of
 % at most 4000 words (name_01, name_02, ...) so every word is kept.
 p = jsondecode(fileread(fullfile(inDir, 'gemm.json')));
+% Every battery is optional (a firstblind kit may hold only rand and mpow).
+for f = {'tree', 'fma', 'zero', 'rand', 'mpow'}
+    if ~isfield(p, f{1}), p.(f{1}) = []; end
+end
 if ~isfolder(outDir), mkdir(outDir); end
 out = fullfile(outDir, 'gemm.jsonl');
 if isfile(out), delete(out); end

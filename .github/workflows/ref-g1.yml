@@ -1,0 +1,93 @@
+name: Firstblind G1 (graph engine) on genuine MATLAB
+on:
+  workflow_dispatch:
+    inputs:
+      kit:
+        description: "Kit folder in this repo (matrices.json, construct.json, measures.json, gemm.json). 'smoke' builds the small test kit."
+        required: true
+        default: smoke
+permissions:
+  contents: read
+env:
+  MKL_CBWR: COMPATIBLE
+  MKL_NUM_THREADS: "1"
+  OMP_NUM_THREADS: "1"
+  KIT: ${{ inputs.kit == 'smoke' && 'cases/g1smoke' || inputs.kit }}
+jobs:
+  reference:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {os: ubuntu-22.04, draw: 1}
+          - {os: ubuntu-22.04, draw: 2}
+          - {os: ubuntu-22.04, draw: 3}
+          - {os: ubuntu-22.04, draw: 4}
+          - {os: ubuntu-22.04, draw: 5}
+          - {os: ubuntu-22.04, draw: 6}
+          - {os: ubuntu-24.04, draw: 1}
+          - {os: ubuntu-24.04, draw: 2}
+          - {os: ubuntu-24.04, draw: 3}
+          - {os: ubuntu-24.04, draw: 4}
+          - {os: ubuntu-24.04, draw: 5}
+          - {os: ubuntu-24.04, draw: 6}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 330
+    steps:
+      - uses: actions/checkout@v4
+      - name: Approved CPU only
+        run: mkdir -p results/g1 && tools/cpu_gate.sh results/g1/cpu.txt
+      - name: Build the smoke kit
+        if: ${{ inputs.kit == 'smoke' }}
+        run: python3 -I tools/gen_p2.py cases/p2 && python3 -I tools/gen_g1_smoke.py cases/g1smoke
+      - name: Check the kit and record input hashes
+        run: |
+          set -euo pipefail
+          for f in matrices.json construct.json measures.json; do test -f "$KIT/$f"; done
+          echo "kit=$KIT" | tee results/g1/inputs_sha256.txt
+          sha256sum "$KIT"/*.json drivers/ref_phase1.m drivers/ref_p2.m tools/digest_blobs.py | tee -a results/g1/inputs_sha256.txt
+      - name: Fetch and verify BCT 2019-03-03 (never committed)
+        run: tools/fetch_bct.sh "$RUNNER_TEMP/bct"
+      - id: setup
+        uses: matlab-actions/setup-matlab@v3
+        with:
+          release: R2026b
+      - name: Record MathWorks binary provenance
+        run: |
+          set -euo pipefail
+          file="$(find /opt/hostedtoolcache/MATLAB -name libmwmathspec.so -type f -print -quit)"
+          sha256sum "$file" | tee -a results/g1/cpu.txt
+      - name: Construction
+        uses: matlab-actions/run-command@v3
+        with:
+          command: maxNumCompThreads(1); addpath('drivers'); ref_phase1(fullfile(getenv('RUNNER_TEMP'),'bct','2019_03_03_BCT'), getenv('KIT'), 'results/g1', 'construct')
+      - name: Measures (BCT comparisons off)
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        uses: matlab-actions/run-command@v3
+        with:
+          command: maxNumCompThreads(1); addpath('drivers'); ref_phase1(fullfile(getenv('RUNNER_TEMP'),'bct','2019_03_03_BCT'), getenv('KIT'), 'results/g1', 'g1measures')
+      - name: Matrix multiply and powers
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' && hashFiles(format('{0}/gemm.json', env.KIT)) != '' }}
+        uses: matlab-actions/run-command@v3
+        with:
+          command: maxNumCompThreads(1); addpath('drivers'); ref_p2(getenv('KIT'), 'results/g1')
+      - name: Digest
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: |
+          set -euo pipefail
+          for p in construct measures; do
+            if [ -f "results/g1/$p.jsonl" ]; then
+              python3 tools/digest_blobs.py "results/g1/$p.jsonl" results/g1/blobs "results/g1/$p.json"
+            fi
+          done
+          rm -rf results/g1/blobs results/g1/construct.jsonl results/g1/measures.jsonl
+          (cd results/g1 && sha256sum $(ls *.json *.jsonl 2>/dev/null)) | tee results/g1/outputs_sha256.txt
+      - name: Upload
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: g1-${{ matrix.os }}-${{ matrix.draw }}
+          path: |
+            results/g1/*.json
+            results/g1/*.jsonl
+            results/g1/*.txt

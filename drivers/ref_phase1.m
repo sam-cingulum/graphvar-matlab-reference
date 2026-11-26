@@ -36,6 +36,10 @@ switch part
         run_p103_measures(fullfile(inDir, '..', 'p103'), outDir, fullfile(inDir, 'bmeasures.json'), inDir);
     case 'prim'
         run_prim(inDir, outDir);
+    case 'g1measures'
+        % Firstblind G1: every graph key resolves inside inDir; BCT comparisons off.
+        setappdata(0, 'GV_NOBCT', true);
+        run_g1_measures(inDir, outDir, mats);
     case 'construct'
         cases = jsondecode(fileread(fullfile(inDir, 'construct.json')));
         out = fullfile(outDir, 'construct.jsonl');
@@ -172,7 +176,7 @@ switch id
     case {'M04', 'M37'}, v = density_dir(W);
     case 'M05'
         v = bfs_distance(W);
-        note = struct('bct2019_distance_bin_equal', double(isequaln(v, distance_bin(W))));
+        note = struct('bct2019_distance_bin_equal', bct_same(@() distance_bin(W), v));
     case 'M06', v = charpath(bfs_distance(W), 0, 0);
     case 'M07'
         D = bfs_distance(W);
@@ -188,10 +192,10 @@ switch id
     case 'M11'
         e = inv_distance(W);
         v = sum(e(:)) ./ (n^2 - n);
-        note = struct('bct2019_efficiency_bin_equal', double(isequaln(v, efficiency_bin(W))));
+        note = struct('bct2019_efficiency_bin_equal', bct_same(@() efficiency_bin(W), v));
     case 'M12'
         v = local_eff_2019_bfs(W);
-        note = struct('bct2019_efficiency_bin_local_equal', double(isequaln(v, efficiency_bin(W, 1))));
+        note = struct('bct2019_efficiency_bin_local_equal', bct_same(@() efficiency_bin(W, 1), v));
     case 'M13', v = clustering_coef_bu(W);
     case 'M14', v = mean(clustering_coef_bu(W));
     case 'M15', v = clustering_coef_bd(W);
@@ -351,6 +355,45 @@ for i = 1:numel(f)
             s.(f{i}) = struct('size', size(v), 'hex', {cellstr(num2hex(v(:)))'});
         end
     end
+end
+end
+
+% ================================================================ G1
+function run_g1_measures(inDir, outDir, mats)
+% Measures for a firstblind kit: {"construct": id} uses inDir/construct.json
+% (its matrix and pvalues names point into inDir/matrices.json), {"matrix": name}
+% uses inDir/matrices.json. Notes are left empty.
+cases = [];
+if isfile(fullfile(inDir, 'construct.json')), cases = jsondecode(fileread(fullfile(inDir, 'construct.json'))); end
+if isempty(cases), byId = containers.Map(); else, byId = containers.Map({cases.case}, num2cell(1:numel(cases))); end
+mcases = jsondecode(fileread(fullfile(inDir, 'measures.json')));
+if ~iscell(mcases), mcases = num2cell(mcases); end
+out = fullfile(outDir, 'measures.jsonl');
+for k = 1:numel(mcases)
+    mc = mcases{k};
+    g = mc.graph;
+    rec = struct('case', mc.case, 'outputs', struct(), 'error', [], 'warnings', {{}}, 'notes', struct());
+    try
+        if isfield(g, 'construct') && ~isempty(g.construct)
+            W = construct_case(cases(byId(g.construct)), mats);
+        else
+            W = fromhex(mats.(g.matrix));
+        end
+    catch err
+        rec.error = struct('identifier', err.identifier, 'message', err.message);
+        emit(out, outDir, rec);
+        continue
+    end
+    ids = cellstr(mc.measures);
+    for q = 1:numel(ids)
+        try
+            [val, ~] = measure(ids{q}, W);
+            rec.outputs.(ids{q}) = val;
+        catch err
+            rec.outputs.(ids{q}) = struct('error', err.identifier, 'message', err.message);
+        end
+    end
+    emit(out, outDir, rec);
 end
 end
 
@@ -626,9 +669,17 @@ E = W ~= 0;
 L(E) = 1 ./ W(E);
 end
 
+function eq = bct_same(f, v)
+% isequaln comparison with a BCT 2019 function (NaN equal to NaN); -3 when BCT is off.
+if isappdata(0, 'GV_NOBCT'), eq = -3; return, end
+eq = double(isequaln(v, f()));
+end
+
 function eq = bct_equal(f, v)
 % 1 if the BCT 2019 function gives the same words, 0 if not, -1 if it errors.
 % Words are compared bit for bit (signed zeros and NaN payloads included).
+% -3 when BCT comparisons are off (firstblind runs).
+if isappdata(0, 'GV_NOBCT'), eq = -3; return, end
 try
     r = f();
 catch
@@ -642,6 +693,7 @@ end
 function eq = rc_note(f, v, deg)
 % Compare with BCT 2019 on the levels where BCT does not return its NaN for
 % "no node below level k" (spec P1-03 section 5).
+if isappdata(0, 'GV_NOBCT'), eq = -3; return, end
 kl = max(deg);
 if kl < 1, eq = -1; return, end
 try
