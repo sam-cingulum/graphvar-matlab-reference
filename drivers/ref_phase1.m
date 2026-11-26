@@ -7,8 +7,12 @@ function ref_phase1(bctRoot, inDir, outDir, part)
 % binary blobs that tools/digest_blobs.py turns into SHA-256 digests.
 addpath(bctRoot);
 if ~isfolder(fullfile(outDir, 'blobs')), mkdir(fullfile(outDir, 'blobs')); end
-mats = jsondecode(fileread(fullfile(inDir, 'matrices.json')));
+if ~startsWith(part, 'p103'), mats = jsondecode(fileread(fullfile(inDir, 'matrices.json'))); end
 switch part
+    case 'p103prim'
+        run_p103_prim(inDir, outDir);
+    case 'p103measures'
+        run_p103_measures(inDir, outDir);
     case 'prim'
         run_prim(inDir, outDir);
     case 'construct'
@@ -169,14 +173,14 @@ switch id
     case 'M29', [M, ~, ~] = matching_ind(W); v = M + M.';
     case 'M30', [~, M, ~] = matching_ind(W); v = M + M.';
     case 'M31', [~, ~, M] = matching_ind(W); v = M + M.';
-    case 'M32', v = rich_club_all(W, sum(W));
-    case 'M33', [~, ~, deg] = degrees_dir(W); v = rich_club_all(W, deg);
+    case 'M32', v = rich_club_all(W, sum(W), n);
+    case 'M33', [~, ~, deg] = degrees_dir(W); v = rich_club_all(W, deg, 2 * n - 2);
     case 'M38', [~, ~, v] = strengths_dir(W);
     case 'M39', [v, ~, ~, ~] = strengths_und_sign(W);
     case 'M40', [~, v, ~, ~] = strengths_und_sign(W);
     case 'M41', [~, ~, v, ~] = strengths_und_sign(W);
     case 'M42', [~, ~, ~, v] = strengths_und_sign(W);
-    otherwise, error('GV:ref:unknownMeasure', 'unknown measure %s', id);
+    otherwise, [v, note] = measure_p103(id, W);
 end
 end
 
@@ -207,11 +211,10 @@ for u = 1:n
 end
 end
 
-function R = rich_club_all(W, deg)
-% Rich-club coefficient for every level k = 1..n (spec M32/M33).
-n = size(W, 1);
-R = zeros(1, n);
-for k = 1:n
+function R = rich_club_all(W, deg, K)
+% Rich-club coefficient for every level k = 1..K (spec M32/M33).
+R = zeros(1, K);
+for k = 1:K
     keep = deg > k;
     sub = W(keep, keep);
     Nk = size(sub, 2);
@@ -296,5 +299,325 @@ for i = 1:numel(f)
             s.(f{i}) = struct('size', size(v), 'hex', {cellstr(num2hex(v(:)))'});
         end
     end
+end
+end
+
+% ================================================================ P1-03
+function run_p103_measures(inDir, outDir)
+p1Dir = fullfile(inDir, '..', 'phase1');
+p1mats = jsondecode(fileread(fullfile(p1Dir, 'matrices.json')));
+p1cases = jsondecode(fileread(fullfile(p1Dir, 'construct.json')));
+byId = containers.Map({p1cases.case}, num2cell(1:numel(p1cases)));
+mats = jsondecode(fileread(fullfile(inDir, 'matrices.json')));
+mcases = jsondecode(fileread(fullfile(inDir, 'measures.json')));
+if ~iscell(mcases), mcases = num2cell(mcases); end
+out = fullfile(outDir, 'measures.jsonl');
+for k = 1:numel(mcases)
+    mc = mcases{k};
+    g = mc.graph;
+    if isfield(g, 'construct') && ~isempty(g.construct)
+        W = construct_case(p1cases(byId(g.construct)), p1mats);
+    elseif isfield(g, 'phase1_matrix') && ~isempty(g.phase1_matrix)
+        W = fromhex(p1mats.(g.phase1_matrix));
+    else
+        W = fromhex(mats.(g.matrix));
+    end
+    ids = cellstr(mc.measures);
+    rec = struct('case', mc.case, 'outputs', struct(), 'error', [], 'warnings', {{}}, 'notes', struct());
+    for q = 1:numel(ids)
+        try
+            [val, note] = measure(ids{q}, W);
+            rec.outputs.(ids{q}) = val;
+            if ~isempty(note), rec.notes.(ids{q}) = note; end
+        catch err
+            rec.outputs.(ids{q}) = struct('error', err.identifier, 'message', err.message);
+        end
+    end
+    emit(out, outDir, rec);
+end
+end
+
+function [v, note] = measure_p103(id, W)
+note = '';
+n = size(W, 1);
+lbl = p103_label(id);
+switch id
+    case 'M43'
+        check_w(W, lbl, true); L = to_lengths(W);
+        v = dist_w(W);
+        note = struct('bct2019_equal', bct_equal(@() distance_wei(L), v));
+    case 'M44'
+        check_w(W, lbl, true); v = charpath(dist_w(W), 0, 0);
+    case 'M45'
+        check_w(W, lbl, true); D = dist_w(W);
+        v = zeros(n, 1);
+        for i = 1:n
+            r = D(i, isfinite(D(i, :)));
+            v(i) = sum(r) / (numel(r) - 1);
+        end
+    case 'M46'
+        check_w(W, lbl, true); [~, ~, v] = charpath(dist_w(W), 0, 0);
+    case 'M47'
+        check_w(W, lbl, true); [~, ~, ~, v] = charpath(dist_w(W), 0, 0);
+    case 'M48'
+        check_w(W, lbl, true); [~, ~, ~, ~, v] = charpath(dist_w(W), 0, 0);
+    case 'M49'
+        check_w(W, lbl, true); v = glob_eff_w(W);
+        note = struct('bct2019_equal', bct_equal(@() efficiency_wei(W), v));
+    case 'M50'
+        check_w(W, lbl, true); v = loc_eff_w(W);
+        note = struct('bct2019_equal', bct_equal(@() efficiency_wei(W, 1), v));
+    case {'M51', 'M52'}
+        check_w(W, lbl, true); v = glob_eff_w(W) - density_und(W);
+    case 'M53', v = assortativity_wei(W, 0);
+    case 'M54', v = assortativity_wei(W, 1);
+    case 'M55', v = assortativity_wei(W, 2);
+    case 'M56', v = assortativity_wei(W, 3);
+    case 'M57', v = assortativity_wei(W, 4);
+    case 'M58'
+        check_w(W, lbl, false); deg = sum(W ~= 0);
+        v = rich_club_w(W, deg, n);
+        note = struct('bct2019_equal_where_defined', rc_note(@(kl) rich_club_wu(W, kl), v, deg));
+    case 'M59'
+        check_w(W, lbl, false); deg = sum(W ~= 0) + sum(W.' ~= 0);
+        v = rich_club_w(W, deg, 2 * n - 2);
+        note = struct('bct2019_equal_where_defined', rc_note(@(kl) rich_club_wd(W, kl), v, deg));
+    case 'M60'
+        check_w(W, lbl, true); L = to_lengths(W);
+        [v, ~] = sp_betweenness(L);
+        note = struct('bct2019_equal', bct_equal(@() betweenness_wei(L), v));
+    case 'M61'
+        check_w(W, lbl, true); L = to_lengths(W);
+        [~, v] = sp_betweenness(L);
+        note = struct('bct2019_equal', bct_equal(@() edge_betweenness_wei(L), v));
+    case {'M62', 'M63'}
+        e = inv_distance(W);
+        v = sum(e(:)) ./ (n^2 - n) - density_und(W);
+    case 'M64'
+        [~, v] = sp_betweenness(double(W ~= 0));
+        note = struct('bct2019_equal', bct_equal(@() edge_betweenness_bin(W), v));
+    otherwise, error('GV:ref:unknownMeasure', 'unknown measure %s', id);
+end
+end
+
+function s = p103_label(id)
+labels = struct('M43', 'Distance - UND/DIR', 'M44', 'Characteristic path global - UND/DIR', ...
+    'M45', 'Characteristic Path local - UND/DIR', 'M46', 'Eccentricity - UND/DIR', ...
+    'M47', 'Graph radius - UND/DIR', 'M48', 'Graph diameter - UND/DIR', 'M49', 'Efficiency global - UND', ...
+    'M50', 'Efficiency local - UND', 'M51', 'Cost efficiency global (Relative or SICE thresholding) - UND', ...
+    'M52', 'Cost efficiency global (Absolute or Significance thresholding) - UND', ...
+    'M58', 'Rich club coefficient - UND', 'M59', 'Rich club coefficient - DIR', ...
+    'M60', 'Betweenness centrality', 'M61', 'Edge betweenness centrality - UND/DIR');
+if isfield(labels, id), s = labels.(id); else, s = id; end
+end
+
+function check_w(W, lbl, lengths)
+bad = find(W < 0, 1);
+if ~isempty(bad)
+    [i, j] = ind2sub(size(W), bad);
+    error('GV:measure:negativeWeights', '%s needs non-negative weights (entry (%d,%d) is negative); choose the absolute or zero negative-weight rule', lbl, i, j);
+end
+if lengths
+    bad = find(W ~= 0 & isinf(1 ./ W), 1);
+    if ~isempty(bad)
+        [i, j] = ind2sub(size(W), bad);
+        error('GV:measure:lengthOverflow', '%s: the weight at entry (%d,%d) is too small to convert to a length', lbl, i, j);
+    end
+end
+end
+
+function L = to_lengths(W)
+L = W;
+E = W ~= 0;
+L(E) = 1 ./ W(E);
+end
+
+function eq = bct_equal(f, v)
+% 1 if the BCT 2019 function gives the same words, 0 if not, -1 if it errors.
+try
+    r = f();
+    eq = double(isequaln(r, v) && isequal(signbit(r), signbit(v)));
+catch
+    eq = -1;
+end
+end
+
+function eq = rc_note(f, v, deg)
+% Compare with BCT 2019 on the levels where BCT does not return its NaN for
+% "no node below level k" (spec P1-03 section 5).
+kl = max(deg);
+if kl < 1, eq = -1; return, end
+try
+    Rb = f(kl);
+catch
+    eq = -1; return
+end
+lv = find(arrayfun(@(k) any(deg < k), 1:kl));
+eq = double(isequaln(Rb(lv), v(lv)));
+end
+
+function D = dist_w(W)
+% Distances on lengths 1/W, cached for the graph of the current case.
+persistent lastW lastD
+if isempty(lastW) || ~isequal(size(lastW), size(W)) || ~isequal(typecast(lastW(:), 'uint64'), typecast(W(:), 'uint64'))
+    lastW = W;
+    lastD = sp_dist(to_lengths(W));
+end
+D = lastD;
+end
+
+function D = sp_dist(L)
+% Spec P1-03 section 1.2: Dijkstra with batches of open nodes only.
+n = size(L, 1);
+D = inf(n);
+for u = 1:n
+    d = inf(1, n); d(u) = 0;
+    open = true(1, n);
+    B = u;
+    while true
+        open(B) = false;
+        for v = B
+            T = find(L(v, :) ~= 0 & open);
+            d(T) = min(d(T), d(v) + L(v, T));   % one addition per candidate; equal values are the same word
+        end
+        if ~any(open), break, end
+        m = min(d(open));
+        if isinf(m), break, end
+        B = find(open & d == m);
+    end
+    D(u, :) = d;
+end
+end
+
+function [BC, EBC] = sp_betweenness(L)
+% Spec P1-03 section 7.1.
+n = size(L, 1);
+BC = zeros(n, 1);
+EBC = zeros(n);
+for u = 1:n
+    d = inf(1, n); d(u) = 0;
+    sg = zeros(1, n); sg(u) = 1;
+    P = false(n);
+    Q = zeros(1, n); q = n;
+    open = true(1, n);
+    B = u;
+    while true
+        open(B) = false;
+        for v = B
+            Q(q) = v; q = q - 1;
+            for w = find(L(v, :) ~= 0 & open)
+                c = d(v) + L(v, w);
+                if c < d(w)
+                    d(w) = c; sg(w) = sg(v); P(w, :) = false; P(w, v) = true;
+                elseif c == d(w)
+                    sg(w) = sg(w) + sg(v); P(w, v) = true;
+                end
+            end
+        end
+        if ~any(open), break, end
+        m = min(d(open));
+        if isinf(m), Q(1:q) = find(open); break, end
+        B = find(open & d == m);
+    end
+    dl = zeros(n, 1);
+    for t = 1:n-1
+        w = Q(t);
+        BC(w) = BC(w) + dl(w);
+        for v = find(P(w, :))
+            x = (1 + dl(w)) .* sg(v) ./ sg(w);
+            dl(v) = dl(v) + x;
+            EBC(v, w) = EBC(v, w) + x;
+        end
+    end
+end
+end
+
+function E = glob_eff_w(W)
+n = size(W, 1);
+I = 1 ./ dist_w(W);
+I(1:n+1:end) = 0;
+E = sum(I(:)) ./ (n^2 - n);
+end
+
+function E = loc_eff_w(W)
+% Spec P1-03 M50.
+n = size(W, 1);
+e = 1 / 3;
+C = W .^ e;
+A = W > 0;
+L = to_lengths(W);
+E = zeros(n, 1);
+for u = 1:n
+    V = find(A(u, :) | A(:, u).');
+    k = numel(V);
+    sw = C(u, V) + C(V, u).';
+    I = 1 ./ sp_dist(L(V, V));
+    I(1:k+1:end) = 0;
+    se = I .^ e + I.' .^ e;
+    X = (sw.' * sw) .* se;
+    num = sum(sum(X)) / 2;
+    if num ~= 0
+        sa = double(A(u, V)) + double(A(V, u).');
+        E(u) = num / (sum(sa)^2 - sum(sa.^2));
+    end
+end
+end
+
+function R = rich_club_w(W, deg, K)
+% Spec P1-03 section 5.
+ranked = sort(W(:), 'descend');
+R = zeros(1, K);
+for k = 1:K
+    keep = deg >= k;
+    S = W(keep, keep);
+    a = sum(S(:));
+    Ek = nnz(S);
+    b = sum(ranked(1:Ek));
+    R(k) = a / b;
+end
+end
+
+function run_p103_prim(inDir, outDir)
+p = jsondecode(fileread(fullfile(inDir, 'prim.json')));
+out = fullfile(outDir, 'prim.jsonl');
+e = 1 / 3;
+x = fromhex(p.pow);
+N = numel(x);
+sc = zeros(1, N);
+for i = 1:N, sc(i) = x(i) ^ e; end
+vc = x .^ e;
+M = reshape(x, 379, []);
+mc = M .^ e;
+T = reshape(x(mod(0:379*379-1, N) + 1), 379, 379);
+tc = T .^ e;
+small = true;
+for kk = [1 2 5 44 100 170]
+    S = reshape(x(1:kk*kk), kk, kk);
+    small = small && isequal(typecast(S(:) .^ e, 'uint64'), typecast(sc(1:kk*kk).', 'uint64'));
+end
+rec = struct('case', 'p103-pow', 'outputs', struct('e', e), 'error', [], 'warnings', {{}}, 'notes', struct( ...
+    'vector_equals_scalar', double(isequal(typecast(vc, 'uint64'), typecast(sc, 'uint64'))), ...
+    'matrix_equals_scalar', double(isequal(typecast(mc(:).', 'uint64'), typecast(sc, 'uint64'))), ...
+    'big_matrix_equals_scalar', double(isequal(typecast(tc(:).', 'uint64'), typecast(sc(mod(0:379*379-1, N) + 1), 'uint64'))), ...
+    'small_matrices_equal_scalar', double(small)));
+for c = 1:ceil(N / 4000)
+    idx = (c-1)*4000+1 : min(c*4000, N);
+    rec.outputs.(sprintf('scalar_%02d', c)) = sc(idx);
+end
+emit(out, outDir, rec);
+for k = 1:numel(p.outer)
+    s = fromhex(p.outer(k));
+    O = s.' * s;
+    E2 = s.' .* s;
+    emit(out, outDir, struct('case', sprintf('p103-outer-%02d', k), 'outputs', struct('outer', O), 'error', [], 'warnings', {{}}, ...
+        'notes', struct('equals_elementwise', double(isequal(typecast(O(:), 'uint64'), typecast(E2(:), 'uint64'))))));
+end
+for k = 1:numel(p.sum1d)
+    v = fromhex(p.sum1d(k));
+    emit(out, outDir, struct('case', sprintf('p103-sum1d-%02d', k), 'outputs', struct('row', sum(v), 'col', sum(v.')), 'error', [], 'warnings', {{}}));
+end
+for k = 1:numel(p.rowsum)
+    X = fromhex(p.rowsum(k));
+    emit(out, outDir, struct('case', sprintf('p103-rowsum-%02d', k), 'outputs', struct('dim2', sum(X, 2), 'dim1', sum(X, 1)), 'error', [], 'warnings', {{}}));
 end
 end

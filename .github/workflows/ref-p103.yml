@@ -1,0 +1,70 @@
+name: P1-03 reference (weighted paths, efficiency, rich club, betweenness, primitives)
+on: workflow_dispatch
+permissions:
+  contents: read
+env:
+  MKL_CBWR: COMPATIBLE
+  MKL_NUM_THREADS: "1"
+  OMP_NUM_THREADS: "1"
+jobs:
+  reference:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, ubuntu-24.04]
+        draw: [1, 2, 3]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 340
+    steps:
+      - uses: actions/checkout@v4
+      - name: Approved CPU only
+        run: mkdir -p results/p103 && tools/cpu_gate.sh results/p103/cpu.txt
+      - name: Generate synthetic inputs
+        run: python3 -I tools/gen_p103.py cases/p103
+      - name: Record input hashes
+        run: sha256sum cases/phase1/*.json cases/p103/*.json tools/gen_p103.py drivers/ref_phase1.m | tee results/p103/inputs_sha256.txt
+      - name: Fetch and verify BCT 2019-03-03 (never committed)
+        run: tools/fetch_bct.sh "$RUNNER_TEMP/bct"
+      - id: setup
+        uses: matlab-actions/setup-matlab@v3
+        with:
+          release: R2026b
+          products: Statistics_and_Machine_Learning_Toolbox
+      - name: Record MathWorks binary provenance
+        run: |
+          set -euo pipefail
+          file="$(find /opt/hostedtoolcache/MATLAB -name libmwmathspec.so -type f -print -quit)"
+          sha256sum "$file" | tee -a results/p103/cpu.txt
+      - name: Primitives
+        uses: matlab-actions/run-command@v3
+        with:
+          command: maxNumCompThreads(1); addpath('drivers'); ref_phase1(fullfile(getenv('RUNNER_TEMP'),'bct','2019_03_03_BCT'), 'cases/p103', 'results/p103', 'p103prim')
+      - name: Measures P1-03
+        uses: matlab-actions/run-command@v3
+        with:
+          command: maxNumCompThreads(1); addpath('drivers'); ref_phase1(fullfile(getenv('RUNNER_TEMP'),'bct','2019_03_03_BCT'), 'cases/p103', 'results/p103', 'p103measures')
+      - name: Phase-1 replay under one computational thread
+        uses: matlab-actions/run-command@v3
+        with:
+          command: maxNumCompThreads(1); addpath('drivers'); b = fullfile(getenv('RUNNER_TEMP'),'bct','2019_03_03_BCT'); mkdir('results/p103/phase1_1thread'); ref_phase1(b, 'cases/phase1', 'results/p103/phase1_1thread', 'prim'); ref_phase1(b, 'cases/phase1', 'results/p103/phase1_1thread', 'construct'); ref_phase1(b, 'cases/phase1', 'results/p103/phase1_1thread', 'measures')
+      - name: Digest
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: |
+          set -euo pipefail
+          for p in prim measures; do
+            [ -f results/p103/$p.jsonl ] && python3 tools/digest_blobs.py results/p103/$p.jsonl results/p103/blobs results/p103/$p.json
+          done
+          rm -rf results/p103/blobs
+          for p in prim construct measures1; do
+            [ -f results/p103/phase1_1thread/$p.jsonl ] && python3 tools/digest_blobs.py results/p103/phase1_1thread/$p.jsonl results/p103/phase1_1thread/blobs results/p103/phase1_1thread/$p.json
+          done
+          rm -rf results/p103/phase1_1thread/blobs
+      - name: Upload
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: p103-reference-${{ matrix.os }}-${{ matrix.draw }}
+          path: |
+            results/p103/*.json
+            results/p103/*.txt
+            results/p103/phase1_1thread/*.json
