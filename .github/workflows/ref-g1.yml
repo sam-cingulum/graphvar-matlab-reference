@@ -52,6 +52,7 @@ jobs:
         uses: matlab-actions/setup-matlab@v3
         with:
           release: R2026b
+          products: Statistics_and_Machine_Learning_Toolbox
       - name: Record MathWorks binary provenance
         run: |
           set -euo pipefail
