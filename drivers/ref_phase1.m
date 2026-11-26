@@ -43,7 +43,7 @@ switch part
         setappdata(0, 'GV_NOBCT', true);
         run_g1_measures(inDir, outDir, mats);
     case 'construct'
-        cases = jsondecode(fileread(fullfile(inDir, 'construct.json')));
+        cases = construct_cases(fullfile(inDir, 'construct.json'));
         out = fullfile(outDir, 'construct.jsonl');
         for k = 1:numel(cases)
             c = cases(k);
@@ -96,6 +96,23 @@ end
 X = reshape(hex2num(cellstr(rec.hex)), sz);
 end
 
+function cases = construct_cases(file)
+% Read construct.json. Records may differ in optional keys (G1: "rank" may be
+% absent, meaning signed), and jsondecode then returns a cell array, so fill
+% every missing key with [] and return a struct array.
+cases = jsondecode(fileread(file));
+if isempty(cases) || ~iscell(cases), return, end
+names = {};
+for k = 1:numel(cases), names = union(names, fieldnames(cases{k}), 'stable'); end
+for k = 1:numel(cases)
+    for f = 1:numel(names)
+        if ~isfield(cases{k}, names{f}), cases{k}.(names{f}) = []; end
+    end
+    cases{k} = orderfields(cases{k}, names);
+end
+cases = [cases{:}];
+end
+
 function [W, neg] = construct_case(c, mats)
 R = fromhex(mats.(c.matrix));
 P = [];
@@ -131,7 +148,12 @@ switch c.type
     case 'significance'
         W = R; W(P > str2double(c.value)) = 0; W(1:n+1:end) = 0;
     case 'proportional'
-        if isfield(c, 'rank') && strcmp(c.rank, 'magnitude')
+        rank = 'signed';
+        if isfield(c, 'rank') && ~isempty(c.rank), rank = c.rank; end
+        if ~any(strcmp(rank, {'signed', 'magnitude'}))
+            error('GV:kit:rank', 'Unknown rank "%s" (use signed or magnitude)', rank);
+        end
+        if strcmp(rank, 'magnitude')
             W = threshold_magnitude(R, str2double(c.value));
         else
             W = threshold_proportional(R, str2double(c.value));
@@ -366,7 +388,7 @@ function run_g1_measures(inDir, outDir, mats)
 % (its matrix and pvalues names point into inDir/matrices.json), {"matrix": name}
 % uses inDir/matrices.json. Notes are left empty.
 cases = [];
-if isfile(fullfile(inDir, 'construct.json')), cases = jsondecode(fileread(fullfile(inDir, 'construct.json'))); end
+if isfile(fullfile(inDir, 'construct.json')), cases = construct_cases(fullfile(inDir, 'construct.json')); end
 if isempty(cases), byId = containers.Map(); else, byId = containers.Map({cases.case}, num2cell(1:numel(cases))); end
 mcases = jsondecode(fileread(fullfile(inDir, 'measures.json')));
 if ~iscell(mcases), mcases = num2cell(mcases); end
