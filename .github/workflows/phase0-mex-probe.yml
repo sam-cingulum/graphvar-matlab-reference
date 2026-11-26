@@ -34,14 +34,246 @@ jobs:
           file="$(find /opt/hostedtoolcache/MATLAB -name libmwmathspec.so -type f -print -quit)"
           test -n "$file"
           sha256sum "$file" | tee -a results/phase0/cpu.txt
-      - name: Check MATLAB runs from the shell
-        if: ${{ steps.setup.outcome == 'success' }}
-        run: matlab -batch "disp(version)"
-      - name: Probe every item in its own MATLAB process
-        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
-        run: |
-          set -uo pipefail
-          tools/run_probe.sh "$RUNNER_TEMP/gv/GraphVar_2.03a" results/phase0
+      - name: Probe session 1
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' && hashFiles('results/phase0/probe_done') == '' }}
+        continue-on-error: true
+        uses: matlab-actions/run-command@v3
+        with:
+          command: addpath('drivers'); probe_mex(fullfile(getenv('RUNNER_TEMP'),'gv','GraphVar_2.03a'), fullfile(pwd,'results','phase0','probe_log.jsonl'), 'resume', ''); fclose(fopen(fullfile(pwd,'results','phase0','probe_done'),'w'));
+      - name: Probe session 2
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' && hashFiles('results/phase0/probe_done') == '' }}
+        continue-on-error: true
+        uses: matlab-actions/run-command@v3
+        with:
+          command: addpath('drivers'); probe_mex(fullfile(getenv('RUNNER_TEMP'),'gv','GraphVar_2.03a'), fullfile(pwd,'results','phase0','probe_log.jsonl'), 'resume', ''); fclose(fopen(fullfile(pwd,'results','phase0','probe_done'),'w'));
+      - name: Probe session 3
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' && hashFiles('results/phase0/probe_done') == '' }}
+        continue-on-error: true
+        uses: matlab-actions/run-command@v3
+        with:
+          command: addpath('drivers'); probe_mex(fullfile(getenv('RUNNER_TEMP'),'gv','GraphVar_2.03a'), fullfile(pwd,'results','phase0','probe_log.jsonl'), 'resume', ''); fclose(fopen(fullfile(pwd,'results','phase0','probe_done'),'w'));
+      - name: Probe session 4
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' && hashFiles('results/phase0/probe_done') == '' }}
+        continue-on-error: true
+        uses: matlab-actions/run-command@v3
+        with:
+          command: addpath('drivers'); probe_mex(fullfile(getenv('RUNNER_TEMP'),'gv','GraphVar_2.03a'), fullfile(pwd,'results','phase0','probe_log.jsonl'), 'resume', ''); fclose(fopen(fullfile(pwd,'results','phase0','probe_done'),'w'));
+      - name: Probe session 5
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' && hashFiles('results/phase0/probe_done') == '' }}
+        continue-on-error: true
+        uses: matlab-actions/run-command@v3
+        with:
+          command: addpath('drivers'); probe_mex(fullfile(getenv('RUNNER_TEMP'),'gv','GraphVar_2.03a'), fullfile(pwd,'results','phase0','probe_log.jsonl'), 'resume', ''); fclose(fopen(fullfile(pwd,'results','phase0','probe_done'),'w'));
+      - name: Probe session 6
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' && hashFiles('results/phase0/probe_done') == '' }}
+        continue-on-error: true
+        uses: matlab-actions/run-command@v3
+        with:
+          command: addpath('drivers'); probe_mex(fullfile(getenv('RUNNER_TEMP'),'gv','GraphVar_2.03a'), fullfile(pwd,'results','phase0','probe_log.jsonl'), 'resume', ''); fclose(fopen(fullfile(pwd,'results','phase0','probe_done'),'w'));
+      - name: Probe session 7
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' && hashFiles('results/phase0/probe_done') == '' }}
+        continue-on-error: true
+        uses: matlab-actions/run-command@v3
+        with:
+          command: addpath('drivers'); probe_mex(fullfile(getenv('RUNNER_TEMP'),'gv','GraphVar_2.03a'), fullfile(pwd,'results','phase0','probe_log.jsonl'), 'resume', ''); fclose(fopen(fullfile(pwd,'results','phase0','probe_done'),'w'));
+      - name: Probe session 8
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' && hashFiles('results/phase0/probe_done') == '' }}
+        continue-on-error: true
+        uses: matlab-actions/run-command@v3
+        with:
+          command: addpath('drivers'); probe_mex(fullfile(getenv('RUNNER_TEMP'),'gv','GraphVar_2.03a'), fullfile(pwd,'results','phase0','probe_log.jsonl'), 'resume', ''); fclose(fopen(fullfile(pwd,'results','phase0','probe_done'),'w'));
+      - name: Probe session 9
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' && hashFiles('results/phase0/probe_done') == '' }}
+        continue-on-error: true
+        uses: matlab-actions/run-command@v3
+        with:
+          command: addpath('drivers'); probe_mex(fullfile(getenv('RUNNER_TEMP'),'gv','GraphVar_2.03a'), fullfile(pwd,'results','phase0','probe_log.jsonl'), 'resume', ''); fclose(fopen(fullfile(pwd,'results','phase0','probe_done'),'w'));
+      - name: Probe session 10
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' && hashFiles('results/phase0/probe_done') == '' }}
+        continue-on-error: true
+        uses: matlab-actions/run-command@v3
+        with:
+          command: addpath('drivers'); probe_mex(fullfile(getenv('RUNNER_TEMP'),'gv','GraphVar_2.03a'), fullfile(pwd,'results','phase0','probe_log.jsonl'), 'resume', ''); fclose(fopen(fullfile(pwd,'results','phase0','probe_done'),'w'));
+      - name: Probe session 11
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' && hashFiles('results/phase0/probe_done') == '' }}
+        continue-on-error: true
+        uses: matlab-actions/run-command@v3
+        with:
+          command: addpath('drivers'); probe_mex(fullfile(getenv('RUNNER_TEMP'),'gv','GraphVar_2.03a'), fullfile(pwd,'results','phase0','probe_log.jsonl'), 'resume', ''); fclose(fopen(fullfile(pwd,'results','phase0','probe_done'),'w'));
+      - name: Probe session 12
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' && hashFiles('results/phase0/probe_done') == '' }}
+        continue-on-error: true
+        uses: matlab-actions/run-command@v3
+        with:
+          command: addpath('drivers'); probe_mex(fullfile(getenv('RUNNER_TEMP'),'gv','GraphVar_2.03a'), fullfile(pwd,'results','phase0','probe_log.jsonl'), 'resume', ''); fclose(fopen(fullfile(pwd,'results','phase0','probe_done'),'w'));
+      - name: Probe session 13
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' && hashFiles('results/phase0/probe_done') == '' }}
+        continue-on-error: true
+        uses: matlab-actions/run-command@v3
+        with:
+          command: addpath('drivers'); probe_mex(fullfile(getenv('RUNNER_TEMP'),'gv','GraphVar_2.03a'), fullfile(pwd,'results','phase0','probe_log.jsonl'), 'resume', ''); fclose(fopen(fullfile(pwd,'results','phase0','probe_done'),'w'));
+      - name: Probe session 14
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' && hashFiles('results/phase0/probe_done') == '' }}
+        continue-on-error: true
+        uses: matlab-actions/run-command@v3
+        with:
+          command: addpath('drivers'); probe_mex(fullfile(getenv('RUNNER_TEMP'),'gv','GraphVar_2.03a'), fullfile(pwd,'results','phase0','probe_log.jsonl'), 'resume', ''); fclose(fopen(fullfile(pwd,'results','phase0','probe_done'),'w'));
+      - name: Probe session 15
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' && hashFiles('results/phase0/probe_done') == '' }}
+        continue-on-error: true
+        uses: matlab-actions/run-command@v3
+        with:
+          command: addpath('drivers'); probe_mex(fullfile(getenv('RUNNER_TEMP'),'gv','GraphVar_2.03a'), fullfile(pwd,'results','phase0','probe_log.jsonl'), 'resume', ''); fclose(fopen(fullfile(pwd,'results','phase0','probe_done'),'w'));
+      - name: Probe session 16
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' && hashFiles('results/phase0/probe_done') == '' }}
+        continue-on-error: true
+        uses: matlab-actions/run-command@v3
+        with:
+          command: addpath('drivers'); probe_mex(fullfile(getenv('RUNNER_TEMP'),'gv','GraphVar_2.03a'), fullfile(pwd,'results','phase0','probe_log.jsonl'), 'resume', ''); fclose(fopen(fullfile(pwd,'results','phase0','probe_done'),'w'));
+      - name: Probe session 17
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' && hashFiles('results/phase0/probe_done') == '' }}
+        continue-on-error: true
+        uses: matlab-actions/run-command@v3
+        with:
+          command: addpath('drivers'); probe_mex(fullfile(getenv('RUNNER_TEMP'),'gv','GraphVar_2.03a'), fullfile(pwd,'results','phase0','probe_log.jsonl'), 'resume', ''); fclose(fopen(fullfile(pwd,'results','phase0','probe_done'),'w'));
+      - name: Probe session 18
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' && hashFiles('results/phase0/probe_done') == '' }}
+        continue-on-error: true
+        uses: matlab-actions/run-command@v3
+        with:
+          command: addpath('drivers'); probe_mex(fullfile(getenv('RUNNER_TEMP'),'gv','GraphVar_2.03a'), fullfile(pwd,'results','phase0','probe_log.jsonl'), 'resume', ''); fclose(fopen(fullfile(pwd,'results','phase0','probe_done'),'w'));
+      - name: Probe session 19
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' && hashFiles('results/phase0/probe_done') == '' }}
+        continue-on-error: true
+        uses: matlab-actions/run-command@v3
+        with:
+          command: addpath('drivers'); probe_mex(fullfile(getenv('RUNNER_TEMP'),'gv','GraphVar_2.03a'), fullfile(pwd,'results','phase0','probe_log.jsonl'), 'resume', ''); fclose(fopen(fullfile(pwd,'results','phase0','probe_done'),'w'));
+      - name: Probe session 20
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' && hashFiles('results/phase0/probe_done') == '' }}
+        continue-on-error: true
+        uses: matlab-actions/run-command@v3
+        with:
+          command: addpath('drivers'); probe_mex(fullfile(getenv('RUNNER_TEMP'),'gv','GraphVar_2.03a'), fullfile(pwd,'results','phase0','probe_log.jsonl'), 'resume', ''); fclose(fopen(fullfile(pwd,'results','phase0','probe_done'),'w'));
+      - name: Probe session 21
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' && hashFiles('results/phase0/probe_done') == '' }}
+        continue-on-error: true
+        uses: matlab-actions/run-command@v3
+        with:
+          command: addpath('drivers'); probe_mex(fullfile(getenv('RUNNER_TEMP'),'gv','GraphVar_2.03a'), fullfile(pwd,'results','phase0','probe_log.jsonl'), 'resume', ''); fclose(fopen(fullfile(pwd,'results','phase0','probe_done'),'w'));
+      - name: Probe session 22
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' && hashFiles('results/phase0/probe_done') == '' }}
+        continue-on-error: true
+        uses: matlab-actions/run-command@v3
+        with:
+          command: addpath('drivers'); probe_mex(fullfile(getenv('RUNNER_TEMP'),'gv','GraphVar_2.03a'), fullfile(pwd,'results','phase0','probe_log.jsonl'), 'resume', ''); fclose(fopen(fullfile(pwd,'results','phase0','probe_done'),'w'));
+      - name: Probe session 23
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' && hashFiles('results/phase0/probe_done') == '' }}
+        continue-on-error: true
+        uses: matlab-actions/run-command@v3
+        with:
+          command: addpath('drivers'); probe_mex(fullfile(getenv('RUNNER_TEMP'),'gv','GraphVar_2.03a'), fullfile(pwd,'results','phase0','probe_log.jsonl'), 'resume', ''); fclose(fopen(fullfile(pwd,'results','phase0','probe_done'),'w'));
+      - name: Probe session 24
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' && hashFiles('results/phase0/probe_done') == '' }}
+        continue-on-error: true
+        uses: matlab-actions/run-command@v3
+        with:
+          command: addpath('drivers'); probe_mex(fullfile(getenv('RUNNER_TEMP'),'gv','GraphVar_2.03a'), fullfile(pwd,'results','phase0','probe_log.jsonl'), 'resume', ''); fclose(fopen(fullfile(pwd,'results','phase0','probe_done'),'w'));
+      - name: Probe session 25
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' && hashFiles('results/phase0/probe_done') == '' }}
+        continue-on-error: true
+        uses: matlab-actions/run-command@v3
+        with:
+          command: addpath('drivers'); probe_mex(fullfile(getenv('RUNNER_TEMP'),'gv','GraphVar_2.03a'), fullfile(pwd,'results','phase0','probe_log.jsonl'), 'resume', ''); fclose(fopen(fullfile(pwd,'results','phase0','probe_done'),'w'));
+      - name: Probe session 26
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' && hashFiles('results/phase0/probe_done') == '' }}
+        continue-on-error: true
+        uses: matlab-actions/run-command@v3
+        with:
+          command: addpath('drivers'); probe_mex(fullfile(getenv('RUNNER_TEMP'),'gv','GraphVar_2.03a'), fullfile(pwd,'results','phase0','probe_log.jsonl'), 'resume', ''); fclose(fopen(fullfile(pwd,'results','phase0','probe_done'),'w'));
+      - name: Probe session 27
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' && hashFiles('results/phase0/probe_done') == '' }}
+        continue-on-error: true
+        uses: matlab-actions/run-command@v3
+        with:
+          command: addpath('drivers'); probe_mex(fullfile(getenv('RUNNER_TEMP'),'gv','GraphVar_2.03a'), fullfile(pwd,'results','phase0','probe_log.jsonl'), 'resume', ''); fclose(fopen(fullfile(pwd,'results','phase0','probe_done'),'w'));
+      - name: Probe session 28
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' && hashFiles('results/phase0/probe_done') == '' }}
+        continue-on-error: true
+        uses: matlab-actions/run-command@v3
+        with:
+          command: addpath('drivers'); probe_mex(fullfile(getenv('RUNNER_TEMP'),'gv','GraphVar_2.03a'), fullfile(pwd,'results','phase0','probe_log.jsonl'), 'resume', ''); fclose(fopen(fullfile(pwd,'results','phase0','probe_done'),'w'));
+      - name: Probe session 29
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' && hashFiles('results/phase0/probe_done') == '' }}
+        continue-on-error: true
+        uses: matlab-actions/run-command@v3
+        with:
+          command: addpath('drivers'); probe_mex(fullfile(getenv('RUNNER_TEMP'),'gv','GraphVar_2.03a'), fullfile(pwd,'results','phase0','probe_log.jsonl'), 'resume', ''); fclose(fopen(fullfile(pwd,'results','phase0','probe_done'),'w'));
+      - name: Probe session 30
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' && hashFiles('results/phase0/probe_done') == '' }}
+        continue-on-error: true
+        uses: matlab-actions/run-command@v3
+        with:
+          command: addpath('drivers'); probe_mex(fullfile(getenv('RUNNER_TEMP'),'gv','GraphVar_2.03a'), fullfile(pwd,'results','phase0','probe_log.jsonl'), 'resume', ''); fclose(fopen(fullfile(pwd,'results','phase0','probe_done'),'w'));
+      - name: Probe session 31
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' && hashFiles('results/phase0/probe_done') == '' }}
+        continue-on-error: true
+        uses: matlab-actions/run-command@v3
+        with:
+          command: addpath('drivers'); probe_mex(fullfile(getenv('RUNNER_TEMP'),'gv','GraphVar_2.03a'), fullfile(pwd,'results','phase0','probe_log.jsonl'), 'resume', ''); fclose(fopen(fullfile(pwd,'results','phase0','probe_done'),'w'));
+      - name: Probe session 32
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' && hashFiles('results/phase0/probe_done') == '' }}
+        continue-on-error: true
+        uses: matlab-actions/run-command@v3
+        with:
+          command: addpath('drivers'); probe_mex(fullfile(getenv('RUNNER_TEMP'),'gv','GraphVar_2.03a'), fullfile(pwd,'results','phase0','probe_log.jsonl'), 'resume', ''); fclose(fopen(fullfile(pwd,'results','phase0','probe_done'),'w'));
+      - name: Probe session 33
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' && hashFiles('results/phase0/probe_done') == '' }}
+        continue-on-error: true
+        uses: matlab-actions/run-command@v3
+        with:
+          command: addpath('drivers'); probe_mex(fullfile(getenv('RUNNER_TEMP'),'gv','GraphVar_2.03a'), fullfile(pwd,'results','phase0','probe_log.jsonl'), 'resume', ''); fclose(fopen(fullfile(pwd,'results','phase0','probe_done'),'w'));
+      - name: Probe session 34
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' && hashFiles('results/phase0/probe_done') == '' }}
+        continue-on-error: true
+        uses: matlab-actions/run-command@v3
+        with:
+          command: addpath('drivers'); probe_mex(fullfile(getenv('RUNNER_TEMP'),'gv','GraphVar_2.03a'), fullfile(pwd,'results','phase0','probe_log.jsonl'), 'resume', ''); fclose(fopen(fullfile(pwd,'results','phase0','probe_done'),'w'));
+      - name: Probe session 35
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' && hashFiles('results/phase0/probe_done') == '' }}
+        continue-on-error: true
+        uses: matlab-actions/run-command@v3
+        with:
+          command: addpath('drivers'); probe_mex(fullfile(getenv('RUNNER_TEMP'),'gv','GraphVar_2.03a'), fullfile(pwd,'results','phase0','probe_log.jsonl'), 'resume', ''); fclose(fopen(fullfile(pwd,'results','phase0','probe_done'),'w'));
+      - name: Probe session 36
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' && hashFiles('results/phase0/probe_done') == '' }}
+        continue-on-error: true
+        uses: matlab-actions/run-command@v3
+        with:
+          command: addpath('drivers'); probe_mex(fullfile(getenv('RUNNER_TEMP'),'gv','GraphVar_2.03a'), fullfile(pwd,'results','phase0','probe_log.jsonl'), 'resume', ''); fclose(fopen(fullfile(pwd,'results','phase0','probe_done'),'w'));
+      - name: Probe session 37
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' && hashFiles('results/phase0/probe_done') == '' }}
+        continue-on-error: true
+        uses: matlab-actions/run-command@v3
+        with:
+          command: addpath('drivers'); probe_mex(fullfile(getenv('RUNNER_TEMP'),'gv','GraphVar_2.03a'), fullfile(pwd,'results','phase0','probe_log.jsonl'), 'resume', ''); fclose(fopen(fullfile(pwd,'results','phase0','probe_done'),'w'));
+      - name: Probe session 38
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' && hashFiles('results/phase0/probe_done') == '' }}
+        continue-on-error: true
+        uses: matlab-actions/run-command@v3
+        with:
+          command: addpath('drivers'); probe_mex(fullfile(getenv('RUNNER_TEMP'),'gv','GraphVar_2.03a'), fullfile(pwd,'results','phase0','probe_log.jsonl'), 'resume', ''); fclose(fopen(fullfile(pwd,'results','phase0','probe_done'),'w'));
+      - name: Probe session 39
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' && hashFiles('results/phase0/probe_done') == '' }}
+        continue-on-error: true
+        uses: matlab-actions/run-command@v3
+        with:
+          command: addpath('drivers'); probe_mex(fullfile(getenv('RUNNER_TEMP'),'gv','GraphVar_2.03a'), fullfile(pwd,'results','phase0','probe_log.jsonl'), 'resume', ''); fclose(fopen(fullfile(pwd,'results','phase0','probe_done'),'w'));
+      - name: Probe session 40
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' && hashFiles('results/phase0/probe_done') == '' }}
+        continue-on-error: true
+        uses: matlab-actions/run-command@v3
+        with:
+          command: addpath('drivers'); probe_mex(fullfile(getenv('RUNNER_TEMP'),'gv','GraphVar_2.03a'), fullfile(pwd,'results','phase0','probe_log.jsonl'), 'resume', ''); fclose(fopen(fullfile(pwd,'results','phase0','probe_done'),'w'));
       - name: Assemble report
         if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         run: python3 tools/assemble_probe.py results/phase0/probe_log.jsonl results/phase0/probe_report.json
