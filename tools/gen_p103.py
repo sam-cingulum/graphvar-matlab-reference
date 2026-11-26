@@ -99,6 +99,10 @@ def main():
             if i != j and rnd.random() < (0.95 if i < 4 or j < 4 else 0.1):
                 H[i][j] = 1.0
     m["g_hubdir_20"] = H
+    # inverse-distance overflow (M49/M50): 1/W is subnormal, so the length check passes, but 1/length = +Inf
+    m["w_maxweight_3"] = sym(3, [(0, 1, 1.0), (1, 2, 1.7976931348623157e308), (0, 2, 1.0)])
+    # boundary: W = 2^1023, 1/(1/W) = W exactly, no overflow
+    m["w_halfmax_3"] = sym(3, [(0, 1, 1.0), (1, 2, 2.0 ** 1023), (0, 2, 1.0)])
     json.dump({k: mat(v) for k, v in m.items()}, open(os.path.join(OUT, "matrices.json"), "w"))
 
     # measure cases
