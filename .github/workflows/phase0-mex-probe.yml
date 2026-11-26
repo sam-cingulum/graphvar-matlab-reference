@@ -1,0 +1,73 @@
+name: Phase 0 MEX load probe (GraphVar 2.03a on MATLAB R2026b)
+on: workflow_dispatch
+permissions:
+  contents: read
+env:
+  MKL_CBWR: COMPATIBLE
+  MKL_NUM_THREADS: "1"
+  OMP_NUM_THREADS: "1"
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - name: Approved CPU only
+        run: mkdir -p results/phase0 && tools/cpu_gate.sh results/phase0/cpu.txt
+      - name: Fetch and verify GraphVar 2.03a from NITRC (never committed)
+        run: tools/fetch_graphvar.sh "$RUNNER_TEMP/gv"
+      - uses: matlab-actions/setup-matlab@v3
+        with:
+          release: R2026b
+          products: Statistics_and_Machine_Learning_Toolbox
+      - name: Record MathWorks binary provenance
+        run: |
+          set -euo pipefail
+          file="$(find /opt/hostedtoolcache/MATLAB -name libmwmathspec.so -type f -print -quit)"
+          test -n "$file"
+          sha256sum "$file" | tee -a results/phase0/cpu.txt
+      - name: Probe pass 1
+        if: always()
+        continue-on-error: true
+        uses: matlab-actions/run-command@v3
+        with:
+          command: addpath('drivers'); probe_mex(fullfile(getenv('RUNNER_TEMP'),'gv','GraphVar_2.03a'), fullfile(pwd,'results','phase0','probe_log.jsonl'))
+      - name: Probe pass 2
+        if: always()
+        continue-on-error: true
+        uses: matlab-actions/run-command@v3
+        with:
+          command: addpath('drivers'); probe_mex(fullfile(getenv('RUNNER_TEMP'),'gv','GraphVar_2.03a'), fullfile(pwd,'results','phase0','probe_log.jsonl'))
+      - name: Probe pass 3
+        if: always()
+        continue-on-error: true
+        uses: matlab-actions/run-command@v3
+        with:
+          command: addpath('drivers'); probe_mex(fullfile(getenv('RUNNER_TEMP'),'gv','GraphVar_2.03a'), fullfile(pwd,'results','phase0','probe_log.jsonl'))
+      - name: Probe pass 4
+        if: always()
+        continue-on-error: true
+        uses: matlab-actions/run-command@v3
+        with:
+          command: addpath('drivers'); probe_mex(fullfile(getenv('RUNNER_TEMP'),'gv','GraphVar_2.03a'), fullfile(pwd,'results','phase0','probe_log.jsonl'))
+      - name: Probe pass 5
+        if: always()
+        continue-on-error: true
+        uses: matlab-actions/run-command@v3
+        with:
+          command: addpath('drivers'); probe_mex(fullfile(getenv('RUNNER_TEMP'),'gv','GraphVar_2.03a'), fullfile(pwd,'results','phase0','probe_log.jsonl'))
+      - name: Probe pass 6
+        if: always()
+        continue-on-error: true
+        uses: matlab-actions/run-command@v3
+        with:
+          command: addpath('drivers'); probe_mex(fullfile(getenv('RUNNER_TEMP'),'gv','GraphVar_2.03a'), fullfile(pwd,'results','phase0','probe_log.jsonl'))
+      - name: Assemble report
+        if: always()
+        run: python3 tools/assemble_probe.py results/phase0/probe_log.jsonl results/phase0/probe_report.json
+      - name: Upload
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase0-mex-probe
+          path: results/phase0/
