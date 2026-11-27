@@ -1,0 +1,66 @@
+name: "Null models 3 (randperm(n,k) regime B: crafted draws that separate rounding variants)"
+on: workflow_dispatch
+permissions:
+  contents: read
+env:
+  MKL_CBWR: COMPATIBLE
+  MKL_NUM_THREADS: "1"
+  OMP_NUM_THREADS: "1"
+jobs:
+  r2026b:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {os: ubuntu-22.04, draw: 1}
+          - {os: ubuntu-22.04, draw: 2}
+          - {os: ubuntu-22.04, draw: 3}
+          - {os: ubuntu-22.04, draw: 4}
+          - {os: ubuntu-22.04, draw: 5}
+          - {os: ubuntu-22.04, draw: 6}
+          - {os: ubuntu-24.04, draw: 1}
+          - {os: ubuntu-24.04, draw: 2}
+          - {os: ubuntu-24.04, draw: 3}
+          - {os: ubuntu-24.04, draw: 4}
+          - {os: ubuntu-24.04, draw: 5}
+          - {os: ubuntu-24.04, draw: 6}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Approved CPU only
+        run: mkdir -p results/nm3 && tools/cpu_gate.sh results/nm3/cpu.txt
+      - name: Generate synthetic inputs
+        run: python3 -I tools/gen_nm.py cases/nm3 && python3 -I tools/gen_nm3.py cases/nm3
+      - name: Record input hashes
+        run: sha256sum cases/nm3/nm.json cases/nm3/nm2.json tools/gen_nm.py tools/gen_nm3.py drivers/ref_nm2.m drivers/nm_apsp_a.m drivers/nm_apsp_b.m drivers/nm_split_local.m | tee results/nm3/inputs_sha256.txt
+      - name: Fetch and verify GraphVar 2.03a from NITRC (never committed)
+        run: tools/fetch_graphvar.sh "$RUNNER_TEMP/gv"
+      - name: Fetch and verify BCT 2019-03-03 (never committed)
+        run: tools/fetch_bct.sh "$RUNNER_TEMP/bct"
+      - id: setup
+        uses: matlab-actions/setup-matlab@v3
+        with:
+          release: R2026b
+          products: Statistics_and_Machine_Learning_Toolbox
+      - name: Record MathWorks binary provenance
+        run: |
+          set -euo pipefail
+          file="$(find /opt/hostedtoolcache/MATLAB -name libmwmathspec.so -type f -print -quit)"
+          sha256sum "$file" | tee -a results/nm3/cpu.txt
+      - name: Null-model battery 3 (battery 2 driver on the nm3 inputs)
+        uses: matlab-actions/run-command@v3
+        with:
+          command: maxNumCompThreads(1); addpath('drivers'); ref_nm2(fullfile(getenv('RUNNER_TEMP'),'bct','2019_03_03_BCT'), fullfile(getenv('RUNNER_TEMP'),'gv','GraphVar_2.03a'), 'cases/nm3', 'results/nm3')
+      - name: Hash outputs
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: |
+          set -euo pipefail
+          rm -rf results/nm3/swp_local
+          (cd results/nm3 && sha256sum nm2.jsonl) | tee results/nm3/outputs_sha256.txt
+      - name: Upload
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: nm3-${{ matrix.os }}-${{ matrix.draw }}
+          path: results/nm3
