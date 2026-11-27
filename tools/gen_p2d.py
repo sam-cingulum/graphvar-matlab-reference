@@ -9,6 +9,7 @@ next K*N fill B. Sets:
   rowvec   M = 1 (row vector times matrix), N in {1, 2, 3, 4, 5, 8, 13, 16}, K = 1..64, three seeds
   colvec   N = 1, M in {2, 3, 4, 5, 8, 13, 16}, K = 1..64
   longk    (M, N) in a few shapes, K = 255..2000 (blocking along K)
+  edge     vectors with the other dimension w = 13..17, K = 1..20, three seeds (the w boundary)
 Synthetic only. Needs no other input.
 """
 import json, os, sys
@@ -35,6 +36,11 @@ def main(out):
     for (M, N) in ((12, 4), (13, 5), (24, 8), (40, 40), (5, 3), (1, 2), (2, 1)):
         for K in (255, 256, 257, 258, 300, 383, 384, 385, 511, 512, 513, 514, 600, 767, 768, 769, 1000, 1024, 1025, 2000):
             add("longk", M, N, K)
+    for w in (13, 14, 15, 16, 17):
+        for K in range(1, 21):
+            for _ in range(3):
+                add("edge", 1, w, K)
+                add("edge", w, 1, K)
     json.dump({"tn": tn}, open(os.path.join(out, "tn.json"), "w"))
     print(f"p2d: {len(tn)} A.'*B records", file=sys.stderr)
 
