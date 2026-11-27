@@ -10,6 +10,8 @@ function ref_nm5(bctDir, gvDir, inDir, outDir)
 %   old    GraphVar's ext/BCT modularity_louvain_und(W): Ci, Q, after
 %   items  a GraphVar menu helper fn(W) with gui/helper on the path and ext/BCT first ("gv") or after BCT 2019 ("bct"):
 %          out1 (and out2 for the two-output cOut helpers), after; or the MATLAB error
+%   (order in the file: env, cl, clgv, prim, items, old; items and old are preceded by a 'begin' record, so a
+%   call that never returns shows as the last 'begin')
 %   prim   X (n x n) from rng(seed) as gen_nm4 sum3: trace(X) (kind trace) or, with L = rand(n) < 0.5 drawn next,
 %          sum(X(L)) and nnz(L) (kind lsum)
 q = jsondecode(fileread(fullfile(inDir, 'nm5.json')));
@@ -76,25 +78,33 @@ for c = cellify(q.clgv)
     end
     emit(out, rec);
 end
-for c = cellify(q.old)
+rmpath(gvBCT);
+
+for c = cellify(q.prim)
     c = c{1};
-    rec = newrec(c.case, 'old');
-    rec.graph = c.graph; rec.seed = c.seed;
-    W = G.(key(c.graph));
+    rec = newrec(c.case, 'prim');
+    rec.kind = c.kind; rec.n = c.n; rec.seed = c.seed;
     try
         rng(c.seed, 'twister');
-        [rec.outputs.Ci, rec.outputs.Q] = modularity_louvain_und(W);
-        rec.outputs.after = rand(1, 4);
+        U1 = rand(c.n); U2 = rand(c.n);
+        X = (U1 - 0.5) .* 2.^(floor(64 * U2) - 32);
+        if strcmp(c.kind, 'trace')
+            rec.outputs.t = trace(X);
+        else
+            L = rand(c.n) < 0.5;
+            rec.outputs.s = sum(X(L));
+            rec.outputs.nnz = nnz(L);
+        end
     catch err
         rec.error = struct('identifier', err.identifier, 'message', err.message);
     end
     emit(out, rec);
 end
-rmpath(gvBCT);
 
 two = {'modularity_louvain_cOut_und', 'modularity_cOut_und'};
 for c = cellify(q.items)
     c = c{1};
+    emit(out, newrec([c.case '-begin'], 'begin'));
     rec = newrec(c.case, 'items');
     rec.fn = c.fn; rec.graph = c.graph; rec.seed = c.seed; rec.order = c.order;
     W = G.(key(c.graph));
@@ -117,26 +127,23 @@ for c = cellify(q.items)
     emit(out, rec);
 end
 
-for c = cellify(q.prim)
+addpath(gvBCT);
+for c = cellify(q.old)
     c = c{1};
-    rec = newrec(c.case, 'prim');
-    rec.kind = c.kind; rec.n = c.n; rec.seed = c.seed;
+    emit(out, newrec([c.case '-begin'], 'begin'));
+    rec = newrec(c.case, 'old');
+    rec.graph = c.graph; rec.seed = c.seed;
+    W = G.(key(c.graph));
     try
         rng(c.seed, 'twister');
-        U1 = rand(c.n); U2 = rand(c.n);
-        X = (U1 - 0.5) .* 2.^(floor(64 * U2) - 32);
-        if strcmp(c.kind, 'trace')
-            rec.outputs.t = trace(X);
-        else
-            L = rand(c.n) < 0.5;
-            rec.outputs.s = sum(X(L));
-            rec.outputs.nnz = nnz(L);
-        end
+        [rec.outputs.Ci, rec.outputs.Q] = modularity_louvain_und(W);
+        rec.outputs.after = rand(1, 4);
     catch err
         rec.error = struct('identifier', err.identifier, 'message', err.message);
     end
     emit(out, rec);
 end
+rmpath(gvBCT);
 end
 
 function [M, Q, tr] = cl_trace(W, gamma)

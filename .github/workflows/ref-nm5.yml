@@ -49,16 +49,17 @@ jobs:
           file="$(find /opt/hostedtoolcache/MATLAB -name libmwmathspec.so -type f -print -quit)"
           sha256sum "$file" | tee -a results/nm5/cpu.txt
       - name: Null-model battery 5
+        timeout-minutes: 40
         uses: matlab-actions/run-command@v3
         with:
           command: maxNumCompThreads(1); addpath('drivers'); ref_nm5(fullfile(getenv('RUNNER_TEMP'),'bct','2019_03_03_BCT'), fullfile(getenv('RUNNER_TEMP'),'gv','GraphVar_2.03a'), 'cases/nm5', 'results/nm5')
       - name: Hash outputs
-        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        if: ${{ always() && steps.setup.outcome == 'success' }}
         run: |
           set -euo pipefail
           (cd results/nm5 && sha256sum nm5.jsonl) | tee results/nm5/outputs_sha256.txt
       - name: Upload
-        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        if: ${{ always() && steps.setup.outcome == 'success' }}
         uses: actions/upload-artifact@v4
         with:
           name: nm5-${{ matrix.os }}-${{ matrix.draw }}
