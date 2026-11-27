@@ -1,0 +1,60 @@
+name: "Phase 2d reference (MM7: distinct-operand A.'*B, small shapes, row and column vectors, long K)"
+on: workflow_dispatch
+permissions:
+  contents: read
+env:
+  MKL_CBWR: COMPATIBLE
+  MKL_NUM_THREADS: "1"
+  OMP_NUM_THREADS: "1"
+jobs:
+  reference:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {os: ubuntu-22.04, draw: 1}
+          - {os: ubuntu-22.04, draw: 2}
+          - {os: ubuntu-22.04, draw: 3}
+          - {os: ubuntu-22.04, draw: 4}
+          - {os: ubuntu-22.04, draw: 5}
+          - {os: ubuntu-22.04, draw: 6}
+          - {os: ubuntu-24.04, draw: 1}
+          - {os: ubuntu-24.04, draw: 2}
+          - {os: ubuntu-24.04, draw: 3}
+          - {os: ubuntu-24.04, draw: 4}
+          - {os: ubuntu-24.04, draw: 5}
+          - {os: ubuntu-24.04, draw: 6}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Approved CPU only
+        run: mkdir -p results/p2d && tools/cpu_gate.sh results/p2d/cpu.txt
+      - name: Generate synthetic inputs
+        run: python3 -I tools/gen_p2d.py cases/p2d
+      - name: Record input hashes
+        run: sha256sum cases/p2d/tn.json tools/gen_p2d.py drivers/ref_p2d.m | tee results/p2d/inputs_sha256.txt
+      - id: setup
+        uses: matlab-actions/setup-matlab@v3
+        with:
+          release: R2026b
+      - name: Record MathWorks binary provenance
+        run: |
+          set -euo pipefail
+          file="$(find /opt/hostedtoolcache/MATLAB -name libmwmathspec.so -type f -print -quit)"
+          sha256sum "$file" | tee -a results/p2d/cpu.txt
+      - name: MM7 transposed products
+        uses: matlab-actions/run-command@v3
+        with:
+          command: maxNumCompThreads(1); addpath('drivers'); fprintf('%s\n', version('-blas')); ref_p2d('cases/p2d', 'results/p2d')
+      - name: Hash outputs
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: sha256sum results/p2d/tn.jsonl | tee results/p2d/outputs_sha256.txt
+      - name: Upload
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: p2d-reference-${{ matrix.os }}-${{ matrix.draw }}
+          path: |
+            results/p2d/*.jsonl
+            results/p2d/*.txt
