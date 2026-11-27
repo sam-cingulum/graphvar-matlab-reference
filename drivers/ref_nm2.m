@@ -43,12 +43,21 @@ emit(out, rec);
 w = q.words(1);
 useIdx = NaN;
 rec = newrec('nm2-words', 'words');
-for idx = [0 1 624 625]
-    set_state(w.state, idx);
-    u = rand(1, numel(w.u));
-    rec.outputs.(sprintf('rand_idx%d', idx)) = u;
-    if isnan(useIdx) && isequal(u(:), w.u(:)), useIdx = idx; end
+useHow = '';
+for idx = [0 1 2 312 623 624 625]
+    for how = {'rng', 'stream'}
+        tag = sprintf('idx%d_%s', idx, how{1});
+        try
+            set_state(w.state, idx, how{1});
+            u = rand(1, numel(w.u));
+            rec.outputs.(['rand_' tag]) = u;
+            if isnan(useIdx) && isequal(u(:), w.u(:)), useIdx = idx; useHow = how{1}; end
+        catch err
+            rec.notes.(['err_' tag]) = [err.identifier ': ' err.message];
+        end
+    end
 end
+rec.notes.use_how = useHow;
 rec.outputs.use_idx = useIdx;
 emit(out, rec);
 for c = cellify(q.craft)
@@ -58,9 +67,9 @@ for c = cellify(q.craft)
     if isnan(useIdx)
         rec.error = struct('identifier', 'nm2:craft', 'message', 'no index word reproduces the crafted doubles');
     else
-        set_state(c.state, useIdx);
+        set_state(c.state, useIdx, useHow);
         rec.outputs.check = rand(1, 1);
-        set_state(c.state, useIdx);
+        set_state(c.state, useIdx, useHow);
         rec.outputs.p = randperm(c.n, c.k);
         rec.outputs.after = rand(1, 4);
     end
@@ -200,14 +209,21 @@ end
 Len = mean(mean(D));
 end
 
-function set_state(words, idx)
+function set_state(words, idx, how)
+% 'rng': rng(struct) with the twister State edited; 'stream': a fresh mt19937ar RandStream's State, set as global stream
 rng(1, 'twister');
 st = rng;
 S = st.State;
 S(1:numel(words)) = uint32(words(:));
 S(end) = uint32(idx);
-st.State = S;
-rng(st);
+if strcmp(how, 'rng')
+    st.State = S;
+    rng(st);
+else
+    rs = RandStream('mt19937ar', 'Seed', 1);
+    rs.State = S;
+    RandStream.setGlobalStream(rs);
+end
 end
 
 function k = key(name)
