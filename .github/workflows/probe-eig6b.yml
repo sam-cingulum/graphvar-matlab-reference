@@ -1,0 +1,67 @@
+name: "Eig probe 6b (full eig with stage outputs at n = 401..599)"
+on: workflow_dispatch
+permissions:
+  contents: read
+env:
+  MKL_CBWR: COMPATIBLE
+  MKL_NUM_THREADS: "1"
+  OMP_NUM_THREADS: "1"
+jobs:
+  probe:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {os: ubuntu-22.04, draw: 1}
+          - {os: ubuntu-22.04, draw: 2}
+          - {os: ubuntu-22.04, draw: 3}
+          - {os: ubuntu-22.04, draw: 4}
+          - {os: ubuntu-22.04, draw: 5}
+          - {os: ubuntu-22.04, draw: 6}
+          - {os: ubuntu-24.04, draw: 1}
+          - {os: ubuntu-24.04, draw: 2}
+          - {os: ubuntu-24.04, draw: 3}
+          - {os: ubuntu-24.04, draw: 4}
+          - {os: ubuntu-24.04, draw: 5}
+          - {os: ubuntu-24.04, draw: 6}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Approved CPU only
+        run: mkdir -p results/eig6b && tools/cpu_gate.sh results/eig6b/cpu.txt
+      - name: Generate synthetic inputs
+        run: python3 -I tools/gen_eig6b.py cases/eig6b
+      - name: Record input hashes
+        run: |
+          set -euo pipefail
+          sha256sum cases/eig6b/eig6.json tools/gen_eig6b.py drivers/probe_eig6.m probes/eig/kpeig.c probes/eig/kpeig2.c probes/eig/kpeig3.c probes/eig/kpeig4.c | tee results/eig6b/inputs_sha256.txt
+          (cd cases/eig6b/eig6 && LC_ALL=C ls | xargs cat | sha256sum | sed 's/-$/eig6\/*.bin (concatenated, sorted by name)/') | tee -a results/eig6b/inputs_sha256.txt
+      - id: setup
+        uses: matlab-actions/setup-matlab@v3
+        with:
+          release: R2026b
+      - name: Record MathWorks binary provenance
+        run: |
+          set -euo pipefail
+          for lib in libmwmathspec.so libmwlapack.so libmwblas.so; do
+            file="$(find /opt/hostedtoolcache/MATLAB -name "$lib" -print -quit)"
+            if [ -n "$file" ]; then sha256sum "$(readlink -f "$file")" | tee -a results/eig6b/cpu.txt; fi
+          done
+          gcc --version | head -1 | tee -a results/eig6b/cpu.txt
+      - name: Eig probe 6b
+        uses: matlab-actions/run-command@v3
+        with:
+          command: maxNumCompThreads(1); addpath('drivers'); probe_eig6('cases/eig6b', 'results/eig6b')
+      - name: Hash outputs
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: |
+          set -euo pipefail
+          rm -rf results/eig6b/mex
+          (cd results/eig6b && sha256sum eig6.jsonl && find blobs -type f | LC_ALL=C sort | xargs cat | sha256sum | sed 's/-$/blobs (concatenated, sorted by name)/') | tee results/eig6b/outputs_sha256.txt
+      - name: Upload
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: eig6b-probe-${{ matrix.os }}-${{ matrix.draw }}
+          path: results/eig6b
